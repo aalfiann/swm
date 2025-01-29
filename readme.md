@@ -25,7 +25,7 @@ This project is to simplify using Service Worker for common PWA Project.
 
 Note:  
 - To keep size always minimal, only common device APIs were implemented.
-- You're able to use this Service Worker Manager AIO for websites non PWA.
+- You're able to use this Service Worker Manager for websites non PWA.
 
 
 ### Usage
@@ -72,6 +72,19 @@ Now you can go to [http://localhost:8080/test-basic.html](http://localhost:8080/
 Check the `Console` or `Application` in DevTools browser to see what happening.
 
 
+### Helper Methods
+- `ServiceWorkerManager.getStatus();`
+- `ServiceWorkerManager.getCurrentPosition();`
+- `ServiceWorkerManager.getCurrentBatteryStatus();`
+- `ServiceWorkerManager.getCurrentNetworkInfo();`
+- `ServiceWorkerManager.getConnectionQuality();`
+- `ServiceWorkerManager.isConnectionMetered();`
+- `ServiceWorkerManager.getRecommendedQuality();`
+- `ServiceWorkerManager.reset();`
+- `ServiceWorkerManager.cleanup();`
+- `APISupport;`
+
+
 ### Advanced Usage
 
 1. Setup FCM
@@ -111,7 +124,7 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
     }
   });
   
-  window.addEventListener('location-change', function (e) {
+  window.addEventListener('location-changed', function (e) {
     console.log(e.detail);
   });
   
@@ -133,7 +146,7 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
     }
   });
   
-  window.addEventListener('battery-status-change', function (e) {
+  window.addEventListener('battery-status-changed', function (e) {
     console.log(e.detail);
   });
   
@@ -153,6 +166,44 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
     onNetworkChange: (status) => {
       console.log('Network:', status);
     }
+  });
+  
+  window.addEventListener('network-info-changed', function (e) {
+    console.log(e.detail);
+  });
+  
+  // service worker error listener
+  window.addEventListener('serviceworker-error', function (e) {
+    console.log(e.detail);
+  });
+</script>
+```
+
+5. Setup All
+```html
+<script>
+  ServiceWorkerManager.register({
+    allowLocalhost: true,
+    enableGPS: true,
+    enableBattery: true,
+    enableNetworkMonitoring: true,
+    onLocationReceived: (location) => {
+      console.log('Location:', location);
+    },
+    onBatteryStatus: (status) => {
+      console.log('Battery:', status);
+    },
+    onNetworkChange: (status) => {
+      console.log('Network:', status);
+    }
+  });
+  
+  window.addEventListener('location-changed', function (e) {
+    console.log(e.detail);
+  });
+  
+  window.addEventListener('battery-status-changed', function (e) {
+    console.log(e.detail);
   });
   
   window.addEventListener('network-info-changed', function (e) {
