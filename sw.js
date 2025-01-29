@@ -1,0 +1,226 @@
+const VERSION = '1.0.0';
+const CACHE_NAME = `site-name-v${VERSION}`;
+const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+const DEBUG = true;
+
+function log(...args) {
+  if (DEBUG) {
+    console.log('[ServiceWorker]', ...args);
+  }
+}
+
+function logError(...args) {
+  if (DEBUG) {
+    console.error('[ServiceWorker Error]', ...args);
+  }
+}
+
+// Files to cache explicitly
+const urlsToCache = [
+  '/',
+  '/favicon.ico'
+];
+
+// Pattern matching rules
+const cachePatterns = [
+  {
+    pattern: /^\/js\/.+\.js$/, // Matches all .js files in /js/ directory
+    strategy: 'cache-first'
+  },
+  {
+    pattern: /^\/images\/.+\.(png|jpg|jpeg|gif|svg)$/, // Matches all images
+    strategy: 'cache-first'
+  },
+  {
+    // PWA assets
+    pattern: /^\/pwa\/.+\.(png|jpg|jpeg)$/,
+    strategy: 'cache-first'
+  },
+  {
+    // Local fonts
+    pattern: /^\/fonts\/.+\.(woff|woff2|eot|ttf|otf)$/,
+    strategy: 'cache-first'
+  },
+  {
+    // Google Fonts
+    pattern: /^https:\/\/fonts\.googleapis\.com\//,
+    strategy: 'cache-first'
+  },
+  {
+    // Google Fonts Files (actual font files)
+    pattern: /^https:\/\/fonts\.gstatic\.com\//,
+    strategy: 'cache-first'
+  }
+  // Add more patterns as needed
+];
+
+// Helper function to check if URL matches any pattern
+function matchesPattern(url) {
+  try {
+    const urlString = url.toString();
+    return cachePatterns.find(({ pattern }) => pattern.test(urlString));
+  } catch (error) {
+    logError('Error matching pattern:', error);
+    return false;
+  }
+}
+
+// Install event with error handling
+self.addEventListener('install', event => {
+  event.waitUntil(
+    caches.open(CACHE_NAME)
+      .then(cache => {
+        log('Cache opened');
+        return cache.addAll(urlsToCache);
+      })
+      .catch(error => {
+        logError('Cache installation failed:', error);
+      })
+  );
+  // Optional: immediately activate the service worker
+  self.skipWaiting();
+});
+
+// Fetch event with improved error handling
+self.addEventListener('fetch', event => {
+  // Ignore non-GET requests
+  if (event.request.method !== 'GET') return;
+
+  const url = event.request.url;
+  const matchedPattern = matchesPattern(url);
+
+  if (matchedPattern || urlsToCache.includes(new URL(url).pathname)) {
+    event.respondWith(
+      caches.match(event.request)
+        .then(async cachedResponse => {
+          if (cachedResponse) {
+            const headers = cachedResponse.headers;
+            const cachedAt = headers.get('cached-at');
+
+            if (cachedAt) {
+              const cachedTime = new Date(cachedAt).getTime();
+              const now = new Date().getTime();
+
+              if (now - cachedTime < CACHE_EXPIRATION) {
+                return cachedResponse;
+              }
+            }
+          }
+
+          try {
+            const response = await fetch(event.request.clone(), {
+              credentials: 'same-origin',
+              mode: 'cors' // Added for cross-origin requests like Google Fonts
+            });
+
+            if (!response || !response.ok) {
+              return cachedResponse || response;
+            }
+
+            const responseToCache = response.clone();
+            const cache = await caches.open(CACHE_NAME);
+
+            const newHeaders = new Headers(response.headers);
+            newHeaders.append('cached-at', new Date().toISOString());
+
+            const responseToStore = new Response(responseToCache.body, {
+              status: responseToCache.status,
+              statusText: responseToCache.statusText,
+              headers: newHeaders
+            });
+
+            try {
+              await cache.put(event.request, responseToStore);
+            } catch (cacheError) {
+              logError('Cache put error:', cacheError);
+            }
+
+            return response;
+          } catch (error) {
+            logError('Fetching failed:', error);
+            return cachedResponse || new Response('Network error', { status: 408 });
+          }
+        })
+    );
+  } else {
+    event.respondWith(
+      fetch(event.request)
+        .catch(error => {
+          logError('Fetch error:', error);
+          return new Response('Network error', { status: 408 });
+        })
+    );
+  }
+});
+
+// Activate event with improved cleanup
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys()
+      .then(cacheNames => {
+        return Promise.all(
+          cacheNames.map(cacheName => {
+            if (cacheName !== CACHE_NAME) {
+              log('Deleting old cache:', cacheName);
+              return caches.delete(cacheName);
+            }
+          })
+        );
+      })
+      .then(() => {
+        // Optional: ensure new service worker takes control immediately
+        return clients.claim();
+      })
+      .catch(error => {
+        logError('Cache cleanup failed:', error);
+      })
+  );
+});
+
+// Handle push messages in the background
+self.addEventListener("push", event => {
+  if (!event.data) {
+    console.warn("Push event received but no data available.");
+    return;
+  }
+
+  let data = {};
+  try {
+    data = event.data.json();
+  } catch (e) {
+    console.error("Error parsing push data:", e);
+  }
+
+  const notif = data.notification || {};
+  const title = notif.title || "New Notification";
+  const options = {
+    body: notif.body || "You have a new message.",
+    icon: notif.image || "/pwa/icon-192x192.png",
+    data: {
+      url: notif.click_action || "/"
+    }
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Handle notification clicks (compatible with FCM and regular push)
+self.addEventListener('notificationclick', event => {
+  event.preventDefault();
+  event.notification.close();
+
+  const url = event.notification.data?.url || '/';
+
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
+      for (const client of clientList) {
+        if (client.url === url && 'focus' in client) {
+          return client.focus();
+        }
+      }
+      if (clients.openWindow) {
+        return clients.openWindow(url);
+      }
+    }).catch(error => console.error("Error handling notification click:", error))
+  );
+});

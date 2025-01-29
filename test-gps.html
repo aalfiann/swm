@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test GPS</title>
+</head>
+
+<body>
+    <h1>Test GPS</h1>
+    <script src="/swm.js"></script>
+    <script>
+      ServiceWorkerManager.register({
+        allowLocalhost: false, // gps only work in https secure context
+        enableGPS: true,
+        onLocationReceived: (location) => {
+          console.log('Location:', location);
+        }
+      });
+
+      window.addEventListener('location-changed', function (e) {
+        console.log(e.detail);
+      });
+
+      // service worker error listener
+      window.addEventListener('serviceworker-error', function (e) {
+        console.log(e.detail);
+      });
+    </script>
+</body>
+
+</html>
