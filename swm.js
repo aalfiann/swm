@@ -111,6 +111,8 @@ class ServiceWorkerManager {
         if (enableGPS) {
           try {
             const permission = await this.requestGPSPermission();
+            console.log('GPS permission status:', permission);
+
             if (permission === 'granted') {
               const location = await this.getCurrentPosition();
               if (typeof onLocationReceived === 'function') {
@@ -119,6 +121,14 @@ class ServiceWorkerManager {
                 } catch (error) {
                   this.dispatchError('location-callback', error);
                 }
+              }
+            } else {
+              console.log('GPS permission not granted');
+              // Try fallback immediately if permission denied
+              const fallbackLocation = await APIFallbacks.getLocationFallback();
+              if (fallbackLocation && typeof onLocationReceived === 'function') {
+                this.status.gps = true;
+                onLocationReceived(fallbackLocation);
               }
             }
           } catch (error) {
@@ -224,15 +234,20 @@ class ServiceWorkerManager {
     if (!('geolocation' in navigator)) {
       return 'denied';
     }
-    return new Promise((resolve) => {
-      navigator.permissions.query({ name: 'geolocation' })
-        .then((result) => {
-          resolve(result.state);
-        })
-        .catch(() => {
-          resolve('prompt');
+
+    // Try to get current position to trigger prompt
+    try {
+      await new Promise((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 5000,
+          maximumAge: 0
         });
-    });
+      });
+      return 'granted';
+    } catch (error) {
+      return error.code === 1 ? 'denied' : 'prompt';
+    }
   }
 
   static async getCurrentPosition() {
