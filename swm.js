@@ -5,12 +5,14 @@ class ServiceWorkerManager {
 
   static _handlers = {};
   static _batteryHandlers = {};
+  static _deviceHandlers = {};
 
   static status = {
     fcm: false,
     gps: false,
     battery: false,
-    network: false
+    network: false,
+    device: false
   };
 
   static dispatchError(type, error) {
@@ -58,7 +60,10 @@ class ServiceWorkerManager {
       onBatteryStatus = null,
       // Network monitoring options
       enableNetworkMonitoring = false,
-      onNetworkChange = null
+      onNetworkChange = null,
+      // Device monitoring options
+      enableDeviceMonitoring = false,
+      onDeviceInfoChange = null
     } = options;
 
     if (!('serviceWorker' in navigator)) {
@@ -135,6 +140,15 @@ class ServiceWorkerManager {
         // Enhanced Network detection with detailed information
         if (enableNetworkMonitoring) {
           this.initializeNetworkMonitoring(onNetworkChange);
+        }
+
+        // Initialize device monitoring if enabled
+        if (enableDeviceMonitoring) {
+          try {
+            this.initializeDeviceMonitoring(onDeviceInfoChange);
+          } catch (error) {
+            this.dispatchError('device-monitoring', error);
+          }
         }
 
         const registration = await navigator.serviceWorker.register('/sw.js');
@@ -569,6 +583,88 @@ class ServiceWorkerManager {
     }
   }
 
+  // Add Device Info Screen
+  static getDeviceInfo() {
+    try {
+      const info = {
+        screen: {
+          width: window.screen.width,
+          height: window.screen.height,
+          orientation: window.screen.orientation?.type || 'unknown'
+        },
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
+        devicePixelRatio: window.devicePixelRatio,
+        timestamp: new Date().toISOString()
+      };
+      return info;
+    } catch (error) {
+      this.dispatchError('device-info', error);
+      return null;
+    }
+  }
+
+  static initializeDeviceMonitoring(callback) {
+    try {
+      this.status.device = false;
+
+      // Handle resize events
+      const handleResize = () => {
+        const deviceInfo = this.getDeviceInfo();
+
+        window.dispatchEvent(new CustomEvent('device-info-changed', {
+          detail: deviceInfo
+        }));
+
+        if (typeof callback === 'function') {
+          try {
+            callback(deviceInfo);
+          } catch (error) {
+            this.dispatchError('device-callback', error);
+          }
+        }
+      };
+
+      // Handle orientation changes
+      const handleOrientationChange = () => {
+        const deviceInfo = this.getDeviceInfo();
+
+        window.dispatchEvent(new CustomEvent('device-orientation-changed', {
+          detail: deviceInfo
+        }));
+
+        if (typeof callback === 'function') {
+          try {
+            callback(deviceInfo);
+          } catch (error) {
+            this.dispatchError('device-orientation-callback', error);
+          }
+        }
+      };
+
+      // Store handlers for cleanup
+      this._deviceHandlers = {
+        resize: handleResize,
+        orientationchange: handleOrientationChange
+      };
+
+      // Add listeners
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('orientationchange', handleOrientationChange);
+
+      // Initial device info
+      handleResize();
+
+      this.status.device = true;
+      return true;
+    } catch (error) {
+      this.dispatchError('device-init', error);
+      return false;
+    }
+  }
+
   static async reset() {
     if (!this.initialized) {
       return false;
@@ -604,6 +700,14 @@ class ServiceWorkerManager {
         });
         window.batteryManager = null;
         this._batteryHandlers = {};
+      }
+
+      // Clean up device handlers
+      if (this._deviceHandlers) {
+        Object.entries(this._deviceHandlers).forEach(([event, handler]) => {
+          window.removeEventListener(event, handler);
+        });
+        this._deviceHandlers = {};
       }
 
       // Reset status
@@ -683,6 +787,6 @@ const APISupport = {
   pushManager: 'PushManager' in window
 };
 
-// Export everything
+// Export global
 window.ServiceWorkerManager = ServiceWorkerManager;
 window.APISupport = APISupport;

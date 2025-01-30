@@ -17,6 +17,7 @@ This project is to simplify using Service Worker for common PWA Project.
 - [x] Support GPS Location
 - [x] Support Battery Monitoring
 - [x] Support Network Monitoring
+- [x] Support Device Info Screen Monitoring
 - [x] Helper functionality
 
 ## PWA Features
@@ -80,6 +81,7 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 - `ServiceWorkerManager.getConnectionQuality();`
 - `ServiceWorkerManager.isConnectionMetered();`
 - `ServiceWorkerManager.getRecommendedQuality();`
+- `ServiceWorkerManager.getDeviceInfo();`
 - `ServiceWorkerManager.reset();`
 - `ServiceWorkerManager.cleanup();`
 - `APISupport;`
@@ -179,7 +181,29 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 </script>
 ```
 
-5. Setup All
+5. Setup Device Screen Monitoring
+```html
+<script>
+  ServiceWorkerManager.register({
+    allowLocalhost: true,
+    enableDeviceMonitoring: true,
+    onDeviceInfoChange: (deviceInfo) => {
+      console.log('Device info changed:', deviceInfo);
+    }
+  });
+  
+  window.addEventListener('device-orientation-changed', function (e) {
+    console.log(e.detail);
+  });
+  
+  // service worker error listener
+  window.addEventListener('serviceworker-error', function (e) {
+    console.log(e.detail);
+  });
+</script>
+```
+
+6. Setup Enable All Features
 ```html
 <script>
   ServiceWorkerManager.register({
@@ -187,6 +211,22 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
     enableGPS: true,
     enableBattery: true,
     enableNetworkMonitoring: true,
+    enableDeviceMonitoring: true,
+    enableFCM: true,
+    firebaseConfig: {
+      apiKey: "your-api-key",
+      authDomain: "your-auth-domain",
+      projectId: "your-project-id",
+      messagingSenderId: "your-sender-id",
+      appId: "your-app-id"
+    },
+    vapidKey: 'your-vapid-key',
+    onFCMTokenReceived: (token) => {
+      console.log('FCM Token:', token);
+    },
+    onDeviceInfoChange: (deviceInfo) => {
+      console.log('Device info changed:', deviceInfo);
+    },
     onLocationReceived: (location) => {
       console.log('Location:', location);
     },
@@ -207,6 +247,10 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
   });
   
   window.addEventListener('network-info-changed', function (e) {
+    console.log(e.detail);
+  });
+  
+  window.addEventListener('device-orientation-changed', function (e) {
     console.log(e.detail);
   });
   
