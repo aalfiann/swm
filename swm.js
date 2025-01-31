@@ -1,9 +1,9 @@
 /**
- * Service Worker Manager - v1.2.0
+ * Service Worker Manager - v1.2.1
  * https://github.com/aalfiann/swm
  */
 class ServiceWorkerManager {
-  static VERSION = '1.2.0';
+  static VERSION = '1.2.1';
   static initialized = false;
   static _lastOptions = null;
 
@@ -620,7 +620,7 @@ class ServiceWorkerManager {
           availHeight: window.screen.availHeight,
           colorDepth: window.screen.colorDepth || 'unknown',
           pixelDepth: window.screen.pixelDepth || 'unknown',
-          orientation: window.screen.orientation?.type || 'unknown',
+          orientation: (window.screen.orientation && window.screen.orientation.type) || 'unknown',
           dpr: window.devicePixelRatio || 1
         },
         viewport: {
