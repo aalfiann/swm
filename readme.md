@@ -54,8 +54,10 @@ Then put all icon assets for manifest PWA in there.
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/pwa/icon-180x180.png">
 ```
+5. For PWA project, you might required to create a file named `assetlinks.json`  
+and place it at `.well-known/assetlinks.json` in your website's root directory.
 
-5. Done.
+6. Done.
 
 ### Testing
 1. Preparation  
@@ -78,10 +80,11 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 - `ServiceWorkerManager.getCurrentPosition();`
 - `ServiceWorkerManager.getCurrentBatteryStatus();`
 - `ServiceWorkerManager.getCurrentNetworkInfo();`
-- `ServiceWorkerManager.getConnectionQuality();`
 - `ServiceWorkerManager.isConnectionMetered();`
 - `ServiceWorkerManager.getRecommendedQuality();`
 - `ServiceWorkerManager.getDeviceInfo();`
+- `ServiceWorkerManager.setAppBadge(count);`
+- `ServiceWorkerManager.clearAppBadge();`
 - `ServiceWorkerManager.reset();`
 - `ServiceWorkerManager.cleanup();`
 - `APISupport;`

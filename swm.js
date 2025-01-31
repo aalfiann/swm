@@ -1,5 +1,9 @@
+/**
+ * Service Worker Manager - v1.1.0
+ * https://github.com/aalfiann/swm
+ */
 class ServiceWorkerManager {
-  static VERSION = '1.0.0';
+  static VERSION = '1.1.0';
   static initialized = false;
   static _lastOptions = null;
 
@@ -680,6 +684,42 @@ class ServiceWorkerManager {
     }
   }
 
+  // App Badge API
+  static async setAppBadge(count) {
+    try {
+      if (!APISupport.appBadge) {
+        console.log('App Badge API not supported');
+        return false;
+      }
+
+      if (typeof count !== 'number' || count < 0) {
+        console.warn('Invalid badge count. Must be a non-negative number.');
+        return false;
+      }
+
+      await navigator.setAppBadge(count);
+      return true;
+    } catch (error) {
+      this.dispatchError('set-badge', error);
+      return false;
+    }
+  }
+
+  static async clearAppBadge() {
+    try {
+      if (!APISupport.appBadge) {
+        console.log('App Badge API not supported');
+        return false;
+      }
+
+      await navigator.clearAppBadge();
+      return true;
+    } catch (error) {
+      this.dispatchError('clear-badge', error);
+      return false;
+    }
+  }
+
   static async reset() {
     if (!this.initialized) {
       return false;
@@ -799,7 +839,8 @@ const APISupport = {
   network: !!(navigator.connection || navigator.mozConnection || navigator.webkitConnection),
   notification: 'Notification' in window,
   serviceWorker: 'serviceWorker' in navigator,
-  pushManager: 'PushManager' in window
+  pushManager: 'PushManager' in window,
+  appBadge: 'setAppBadge' in navigator
 };
 
 // Export global

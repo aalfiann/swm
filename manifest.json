@@ -4,7 +4,10 @@
   "short_name": "SiteName",
   "start_url": "https://yourdomain.com/",
   "display": "standalone",
-  "orientation": "any",
+  "display_override": [
+    "window-controls-overlay"
+  ],
+  "orientation": "natural",
   "background_color": "#f5f5f5",
   "theme_color": "#f5f5f5",
   "description": "Description of your web app.",
