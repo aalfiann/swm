@@ -1,9 +1,9 @@
 /**
- * Service Worker Manager - v1.1.0
+ * Service Worker Manager - v1.2.0
  * https://github.com/aalfiann/swm
  */
 class ServiceWorkerManager {
-  static VERSION = '1.1.0';
+  static VERSION = '1.2.0';
   static initialized = false;
   static _lastOptions = null;
 
@@ -602,20 +602,43 @@ class ServiceWorkerManager {
     }
   }
 
-  // Add Device Info Screen
+  // Add Device Info
   static getDeviceInfo() {
     try {
+      const userAgent = navigator.userAgent;
+
+      const ua = {
+        mobile: /Mobile|Android|iP(hone|od|ad)/i.test(userAgent),
+        tablet: /(tablet|ipad|playbook|silk)|(android(?!.*mobile))/i.test(userAgent)
+      };
+
       const info = {
         screen: {
           width: window.screen.width,
           height: window.screen.height,
-          orientation: window.screen.orientation?.type || 'unknown'
+          availWidth: window.screen.availWidth,
+          availHeight: window.screen.availHeight,
+          colorDepth: window.screen.colorDepth || 'unknown',
+          pixelDepth: window.screen.pixelDepth || 'unknown',
+          orientation: window.screen.orientation?.type || 'unknown',
+          dpr: window.devicePixelRatio || 1
         },
         viewport: {
           width: window.innerWidth,
-          height: window.innerHeight
+          height: window.innerHeight,
+          pageZoom: Math.round((window.outerWidth / window.innerWidth) * 100) / 100
         },
-        devicePixelRatio: window.devicePixelRatio,
+        device: {
+          type: ua.mobile ? 'mobile' : ua.tablet ? 'tablet' : 'desktop',
+          memory: navigator.deviceMemory || 'unknown',
+          processors: navigator.hardwareConcurrency || 'unknown',
+          touchPoints: navigator.maxTouchPoints || 0,
+          language: navigator.language,
+          languages: navigator.languages || [navigator.language],
+          devicePixelRatio: window.devicePixelRatio,
+          prefersDarkMode: window.matchMedia('(prefers-color-scheme: dark)').matches
+        },
+        userAgent,
         timestamp: new Date().toISOString()
       };
       return info;
