@@ -224,3 +224,26 @@ self.addEventListener('notificationclick', event => {
     }).catch(error => console.error("Error handling notification click:", error))
   );
 });
+
+// Handle isolated messages for getting sw config
+self.addEventListener('message', (event) => {
+  if (event.data.type === 'GET_SW_CONFIG') {
+    // Convert milliseconds to human readable format
+    const msToHumanReadable = (ms) => {
+      const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+      const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+      const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+
+      if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'}`;
+      if (hours > 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+      if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+      return 'less than a minute';
+    };
+
+    event.ports[0].postMessage({
+      version: VERSION,
+      cacheName: CACHE_NAME,
+      cacheExpiration: msToHumanReadable(CACHE_EXPIRATION)
+    });
+  }
+});

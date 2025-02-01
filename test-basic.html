@@ -11,14 +11,23 @@
     <h1>Test Basic</h1>
     <script src="/swm.js"></script>
     <script>
-      ServiceWorkerManager.register({
-        allowLocalhost: true
-      });
+      try {
+        ServiceWorkerManager.register({
+          allowLocalhost: true
+        });
 
-      // service worker error listener
-      window.addEventListener('serviceworker-error', function (e) {
-        console.log(e.detail);
-      });
+        // get sw config
+        ServiceWorkerManager.getSWConfig().then(config => {
+          console.log('SW Config:', config);
+        });
+
+        // service worker error listener
+        window.addEventListener('serviceworker-error', function (e) {
+          console.log(e.detail);
+        });
+      } catch (err) {
+        console.log(err);
+      }
     </script>
 </body>
 

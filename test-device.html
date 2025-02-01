@@ -11,22 +11,26 @@
     <h1>Test Device Info</h1>
     <script src="/swm.js"></script>
     <script>
-      ServiceWorkerManager.register({
-        allowLocalhost: true,
-        enableDeviceMonitoring: true,
-        onDeviceInfoChange: (deviceInfo) => {
-          console.log('Device info changed:', deviceInfo);
-        }
-      });
+      try {
+        ServiceWorkerManager.register({
+          allowLocalhost: true,
+          enableDeviceMonitoring: true,
+          onDeviceInfoChange: (deviceInfo) => {
+            console.log('Device info changed:', deviceInfo);
+          }
+        });
 
-      window.addEventListener('device-orientation-changed', function(e) {
-        console.log('Device orientation changed:', e.detail);
-      });
+        window.addEventListener('device-orientation-changed', function(e) {
+          console.log('Device orientation changed:', e.detail);
+        });
 
-      // service worker error listener
-      window.addEventListener('serviceworker-error', function (e) {
-        console.log(e.detail);
-      });
+        // service worker error listener
+        window.addEventListener('serviceworker-error', function (e) {
+          console.log(e.detail);
+        });
+      } catch (err) {
+        console.log(err);
+      }
     </script>
 </body>
 

@@ -11,26 +11,30 @@
     <h1>Test FCM</h1>
     <script src="/swm.js"></script>
     <script>
-      ServiceWorkerManager.register({
-        allowLocalhost: true,
-        enableFCM: true,
-        firebaseConfig: {
-          apiKey: "your-api-key",
-          authDomain: "your-auth-domain",
-          projectId: "your-project-id",
-          messagingSenderId: "your-sender-id",
-          appId: "your-app-id"
-        },
-        vapidKey: 'your-vapid-key',
-        onFCMTokenReceived: (token) => {
-          console.log('FCM Token: ', token);
-        }
-      });
+      try {
+        ServiceWorkerManager.register({
+          allowLocalhost: true,
+          enableFCM: true,
+          firebaseConfig: {
+            apiKey: "your-api-key",
+            authDomain: "your-auth-domain",
+            projectId: "your-project-id",
+            messagingSenderId: "your-sender-id",
+            appId: "your-app-id"
+          },
+          vapidKey: 'your-vapid-key',
+          onFCMTokenReceived: (token) => {
+            console.log('FCM Token: ', token);
+          }
+        });
 
-      // service worker error listener
-      window.addEventListener('serviceworker-error', function (e) {
-        console.log(e.detail);
-      });
+        // service worker error listener
+        window.addEventListener('serviceworker-error', function (e) {
+          console.log(e.detail);
+        });
+      } catch (err) {
+        console.log(err);
+      }
     </script>
 </body>
 

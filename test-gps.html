@@ -11,22 +11,26 @@
     <h1>Test GPS Location</h1>
     <script src="/swm.js"></script>
     <script>
-      ServiceWorkerManager.register({
-        allowLocalhost: true, // gps only work in https secure context
-        enableGPS: true,
-        onLocationReceived: (location) => {
-          console.log('Location:', location);
-        }
-      });
+      try {
+        ServiceWorkerManager.register({
+          allowLocalhost: true, // gps only work in https secure context
+          enableGPS: true,
+          onLocationReceived: (location) => {
+            console.log('Location:', location);
+          }
+        });
 
-      window.addEventListener('location-changed', function (e) {
-        console.log(e.detail);
-      });
+        window.addEventListener('location-changed', function (e) {
+          console.log(e.detail);
+        });
 
-      // service worker error listener
-      window.addEventListener('serviceworker-error', function (e) {
-        console.log(e.detail);
-      });
+        // service worker error listener
+        window.addEventListener('serviceworker-error', function (e) {
+          console.log(e.detail);
+        });
+      } catch (err) {
+        console.log(err);
+      }
     </script>
 </body>
 

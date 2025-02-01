@@ -36,13 +36,18 @@ Note:
 ```html
 <script src="/swm.js"></script>
 <script>
-  // 1. Basic usage without any additional features
-  ServiceWorkerManager.register();
-
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  // must wrapped in try-catch block to prevent old browser error
+  try {
+    // 1. Basic usage without any additional features
+    ServiceWorkerManager.register();
+  
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch(err) {
+    console.log(err);
+  }
 </script>
 ```
 
@@ -77,16 +82,17 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 
 ### Helper Methods
 - `ServiceWorkerManager.getStatus();`
-- `ServiceWorkerManager.getCurrentPosition();`
-- `ServiceWorkerManager.getCurrentBatteryStatus();`
+- `async ServiceWorkerManager.getCurrentPosition();`
+- `async ServiceWorkerManager.getCurrentBatteryStatus();`
 - `ServiceWorkerManager.getCurrentNetworkInfo();`
 - `ServiceWorkerManager.isConnectionMetered();`
 - `ServiceWorkerManager.getRecommendedQuality();`
 - `ServiceWorkerManager.getDeviceInfo();`
-- `ServiceWorkerManager.setAppBadge(count);`
-- `ServiceWorkerManager.clearAppBadge();`
-- `ServiceWorkerManager.reset();`
-- `ServiceWorkerManager.cleanup();`
+- `async ServiceWorkerManager.setAppBadge(count);`
+- `async ServiceWorkerManager.clearAppBadge();`
+- `async ServiceWorkerManager.reset();`
+- `async ServiceWorkerManager.cleanup();`
+- `async ServiceWorkerManager.getSWConfig();`
 - `APISupport;`
 
 
@@ -95,171 +101,195 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 1. Setup FCM
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: true,
-    enableFCM: true,
-    firebaseConfig: {
-      apiKey: "your-api-key",
-      authDomain: "your-auth-domain",
-      projectId: "your-project-id",
-      messagingSenderId: "your-sender-id",
-      appId: "your-app-id"
-    },
-    vapidKey: 'your-vapid-key',
-    onFCMTokenReceived: (token) => {
-      console.log('FCM Token:', token);
-    }
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableFCM: true,
+      firebaseConfig: {
+        apiKey: "your-api-key",
+        authDomain: "your-auth-domain",
+        projectId: "your-project-id",
+        messagingSenderId: "your-sender-id",
+        appId: "your-app-id"
+      },
+      vapidKey: 'your-vapid-key',
+      onFCMTokenReceived: (token) => {
+        console.log('FCM Token:', token);
+      }
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
 
 2. Setup GPS Location
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: false, // gps only work in https secure context
-    enableGPS: true,
-    onLocationReceived: (location) => {
-      console.log('Location:', location);
-    }
-  });
-  
-  window.addEventListener('location-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: false, // gps only work in https secure context
+      enableGPS: true,
+      onLocationReceived: (location) => {
+        console.log('Location:', location);
+      }
+    });
+    
+    window.addEventListener('location-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
 
 3. Setup Battery Monitoring
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: true,
-    enableBattery: true,
-    onBatteryStatus: (status) => {
-      console.log('Battery:', status);
-    }
-  });
-  
-  window.addEventListener('battery-status-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableBattery: true,
+      onBatteryStatus: (status) => {
+        console.log('Battery:', status);
+      }
+    });
+    
+    window.addEventListener('battery-status-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
 
 4. Setup Network Monitoring
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: true,
-    enableNetworkMonitoring: true,
-    onNetworkChange: (status) => {
-      console.log('Network:', status);
-    }
-  });
-  
-  window.addEventListener('network-info-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableNetworkMonitoring: true,
+      onNetworkChange: (status) => {
+        console.log('Network:', status);
+      }
+    });
+    
+    window.addEventListener('network-info-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
 
 5. Setup Device Screen Monitoring
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: true,
-    enableDeviceMonitoring: true,
-    onDeviceInfoChange: (deviceInfo) => {
-      console.log('Device info changed:', deviceInfo);
-    }
-  });
-  
-  window.addEventListener('device-orientation-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableDeviceMonitoring: true,
+      onDeviceInfoChange: (deviceInfo) => {
+        console.log('Device info changed:', deviceInfo);
+      }
+    });
+    
+    window.addEventListener('device-orientation-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
 
 6. Setup Enable All Features
 ```html
 <script>
-  ServiceWorkerManager.register({
-    allowLocalhost: true,
-    enableGPS: true,
-    enableBattery: true,
-    enableNetworkMonitoring: true,
-    enableDeviceMonitoring: true,
-    enableFCM: true,
-    firebaseConfig: {
-      apiKey: "your-api-key",
-      authDomain: "your-auth-domain",
-      projectId: "your-project-id",
-      messagingSenderId: "your-sender-id",
-      appId: "your-app-id"
-    },
-    vapidKey: 'your-vapid-key',
-    onFCMTokenReceived: (token) => {
-      console.log('FCM Token:', token);
-    },
-    onDeviceInfoChange: (deviceInfo) => {
-      console.log('Device info changed:', deviceInfo);
-    },
-    onLocationReceived: (location) => {
-      console.log('Location:', location);
-    },
-    onBatteryStatus: (status) => {
-      console.log('Battery:', status);
-    },
-    onNetworkChange: (status) => {
-      console.log('Network:', status);
-    }
-  });
-  
-  window.addEventListener('location-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  window.addEventListener('battery-status-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  window.addEventListener('network-info-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  window.addEventListener('device-orientation-changed', function (e) {
-    console.log(e.detail);
-  });
-  
-  // service worker error listener
-  window.addEventListener('serviceworker-error', function (e) {
-    console.log(e.detail);
-  });
+  try {
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableGPS: true,
+      enableBattery: true,
+      enableNetworkMonitoring: true,
+      enableDeviceMonitoring: true,
+      enableFCM: true,
+      firebaseConfig: {
+        apiKey: "your-api-key",
+        authDomain: "your-auth-domain",
+        projectId: "your-project-id",
+        messagingSenderId: "your-sender-id",
+        appId: "your-app-id"
+      },
+      vapidKey: 'your-vapid-key',
+      onFCMTokenReceived: (token) => {
+        console.log('FCM Token:', token);
+      },
+      onDeviceInfoChange: (deviceInfo) => {
+        console.log('Device info changed:', deviceInfo);
+      },
+      onLocationReceived: (location) => {
+        console.log('Location:', location);
+      },
+      onBatteryStatus: (status) => {
+        console.log('Battery:', status);
+      },
+      onNetworkChange: (status) => {
+        console.log('Network:', status);
+      }
+    });
+    
+    window.addEventListener('location-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    window.addEventListener('battery-status-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    window.addEventListener('network-info-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    window.addEventListener('device-orientation-changed', function (e) {
+      console.log(e.detail);
+    });
+    
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  } catch (err) {
+    console.log(err);
+  }
 </script>
 ```
