@@ -59,8 +59,10 @@ Then put all icon assets for manifest PWA in there.
 <link rel="manifest" href="/manifest.json">
 <link rel="apple-touch-icon" href="/pwa/icon-180x180.png">
 ```
-5. For PWA project, you might required to create a file named `assetlinks.json`  
-and place it at `.well-known/assetlinks.json` in your website's root directory.
+
+5. For PWA project, you're required to create a file named `assetlinks.json`  
+and place it at `.well-known/assetlinks.json` in your website's root directory.  
+Please see [Digital Asset Links](https://developers.google.com/digital-asset-links/v1/getting-started) for more information.
 
 6. Done.
 
@@ -70,12 +72,14 @@ If you're using Linux environment, you can use `NodeJS` and `http-server`.
 ```bash
 npm install -g http-server
 ```
-2. Just go this project then run this command
+
+2. Just go to this project then run this command
 ```bash
 http-server
 ```
+
 3. Default will use port 8080.  
-Now you can go to [http://localhost:8080/test-basic.html](http://localhost:8080/test-basic.html).  
+Now you can go to [http://localhost:8080/test/test-basic.html](http://localhost:8080/test/test-basic.html).  
 
 Check the `Console` or `Application` in DevTools browser to see what happening.
 
@@ -98,6 +102,48 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 
 ### Advanced Usage
 
+1. Using ESM
+```html
+<script type="module">
+  import { ServiceWorkerManager, APISupport } from '/swm.esm.js';
+
+  ServiceWorkerManager.register();
+
+  // service worker error listener
+  window.addEventListener('serviceworker-error', function (e) {
+    console.log(e.detail);
+  });
+  
+  // check API support
+  document.addEventListener('DOMContentLoaded', function() {
+    console.log('API Support:', APISupport);
+  });
+</script>
+```
+
+2. Using TypeScript  
+First, install Firebase and its types:
+```bash
+npm install firebase
+npm install --save-dev @types/firebase
+# or
+yarn add firebase
+yarn add -D @types/firebase
+```
+
+Then you can use it like this
+```js
+import { ServiceWorkerManager } from '/swm.ts';
+
+ServiceWorkerManager.register();
+
+// service worker error listener
+window.addEventListener('serviceworker-error', function (e) {
+  console.log(e.detail);
+});
+```
+
+### Example Usage
 1. Setup FCM
 ```html
 <script>

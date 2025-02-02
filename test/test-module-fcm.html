@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test FCM Module</title>
+</head>
+
+<body>
+  <h1>Test FCM Module</h1>
+  <script type="module">
+    import { ServiceWorkerManager } from '../swm.esm.js';
+
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableFCM: true,
+      firebaseConfig: {
+        apiKey: "your-api-key",
+        authDomain: "your-auth-domain",
+        projectId: "your-project-id",
+        messagingSenderId: "your-sender-id",
+        appId: "your-app-id"
+      },
+      vapidKey: 'your-vapid-key',
+      onFCMTokenReceived: (token) => {
+        console.log('FCM Token: ', token);
+      }
+    });
+
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  </script>
+</body>
+</html>

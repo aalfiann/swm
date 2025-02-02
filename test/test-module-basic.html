@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Basic Module</title>
+</head>
+
+<body>
+  <h1>Test Basic Module</h1>
+  <script type="module">
+    import { ServiceWorkerManager, APISupport } from '../swm.esm.js';
+
+    ServiceWorkerManager.register({
+      allowLocalhost: true
+    });
+
+    // get sw config
+    ServiceWorkerManager.getSWConfig().then(config => {
+      console.log('SW Config:', config);
+    });
+
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+
+    document.addEventListener('DOMContentLoaded', function() {
+      console.log('API Support:', APISupport);
+    });
+  </script>
+</body>
+</html>

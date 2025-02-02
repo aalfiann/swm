@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Network Module</title>
+</head>
+
+<body>
+  <h1>Test Network Module</h1>
+  <script type="module">
+    import { ServiceWorkerManager } from '../swm.esm.js';
+
+    ServiceWorkerManager.register({
+      allowLocalhost: true,
+      enableNetworkMonitoring: true,
+      onNetworkChange: (status) => {
+        console.log('Network:', status);
+      }
+    });
+
+    window.addEventListener('network-info-changed', function (e) {
+      console.log(e.detail);
+    });
+
+    // service worker error listener
+    window.addEventListener('serviceworker-error', function (e) {
+      console.log(e.detail);
+    });
+  </script>
+</body>
+</html>

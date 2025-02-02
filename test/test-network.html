@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Network</title>
+</head>
+
+<body>
+  <h1>Test Network</h1>
+  <script src="../swm.js"></script>
+  <script>
+    try {
+      ServiceWorkerManager.register({
+        allowLocalhost: true,
+        enableNetworkMonitoring: true,
+        onNetworkChange: (status) => {
+          console.log('Network:', status);
+        }
+      });
+
+      window.addEventListener('network-info-changed', function (e) {
+        console.log(e.detail);
+      });
+
+      // service worker error listener
+      window.addEventListener('serviceworker-error', function (e) {
+        console.log(e.detail);
+      });
+    } catch (err) {
+      console.log(err);
+    }
+  </script>
+</body>
+</html>
