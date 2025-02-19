@@ -21,6 +21,10 @@ This project is to simplify using Service Worker for common PWA Project.
 - [x] Helper functionality
 
 ## PWA Features
+- [x] Offline Support
+- [x] Edge Side Panel
+- [x] Custom shortcuts
+- [x] Display Override
 - [x] Best practice manifest.json
 - [x] Custom SplashScreen with ProgressBar for All Devices
 
