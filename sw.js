@@ -31,7 +31,7 @@ const cachePatterns = [
     strategy: 'cache-first'
   },
   {
-    pattern: /^\/blog\/.+$/, // cache dynamic content page. i.e. /blog/ posts
+    pattern: /^\/blog\/.*$/, // cache dynamic content page. i.e. /blog/* posts
     strategy: 'cache-first'
   },
   {

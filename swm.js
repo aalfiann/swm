@@ -1,5 +1,5 @@
 /**
- * Service Worker Manager - v1.4.1
+ * Service Worker Manager - v1.4.2
  * https://github.com/aalfiann/swm
  */
 (function () {
@@ -11,7 +11,7 @@
   }
 
   class ServiceWorkerManager {
-    static VERSION = '1.4.1';
+    static VERSION = '1.4.2';
     static initialized = false;
     static _lastOptions = null;
 
