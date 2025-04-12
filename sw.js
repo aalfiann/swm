@@ -17,12 +17,23 @@ function logError(...args) {
 
 // Files to cache explicitly
 const urlsToCache = [
-  '/',
   '/favicon.ico'
 ];
 
 // Pattern matching rules
 const cachePatterns = [
+  {
+    pattern: /^\/$/, // Homepage
+    strategy: 'cache-first'
+  },
+  {
+    pattern: /^\/(about|contact)\/$/, // another static page if any
+    strategy: 'cache-first'
+  },
+  {
+    pattern: /^\/blog\/.+$/, // cache dynamic content page. i.e. /blog/ posts
+    strategy: 'cache-first'
+  },
   {
     pattern: /^\/js\/.+\.js$/, // Matches all .js files in /js/ directory
     strategy: 'cache-first'
@@ -42,6 +53,11 @@ const cachePatterns = [
     strategy: 'cache-first'
   },
   {
+    // Astro SSG assets if any
+    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|svg|woff2)$/,
+    strategy: 'cache-first'
+  },
+  {
     // Google Fonts
     pattern: /^https:\/\/fonts\.googleapis\.com\//,
     strategy: 'cache-first'
@@ -57,8 +73,10 @@ const cachePatterns = [
 // Helper function to check if URL matches any pattern
 function matchesPattern(url) {
   try {
-    const urlString = url.toString();
-    return cachePatterns.find(({ pattern }) => pattern.test(urlString));
+    const urlObj = new URL(url);
+    const full = urlObj.toString();
+    const path = urlObj.pathname;
+    return cachePatterns.find(({ pattern }) => pattern.test(full) || pattern.test(path));
   } catch (error) {
     logError('Error matching pattern:', error);
     return false;
@@ -129,10 +147,14 @@ self.addEventListener('fetch', event => {
               headers: newHeaders
             });
 
-            try {
-              await cache.put(event.request, responseToStore);
-            } catch (cacheError) {
-              logError('Cache put error:', cacheError);
+            if (event.request.url.startsWith('http')) {
+              try {
+                await cache.put(event.request, responseToStore);
+              } catch (cacheError) {
+                logError('Cache put error:', cacheError);
+              }
+            } else {
+              log('Skipping cache.put for non-http(s) request:', event.request.url);
             }
 
             return response;
