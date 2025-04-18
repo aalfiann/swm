@@ -1,7 +1,14 @@
-const VERSION = '1.0.0';
-const CACHE_NAME = `site-name-v${VERSION}`;
-const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
-const DEBUG = true;
+// This version is used to invalidate the cache when the service worker is updated
+const VERSION = '1.0.0'; // Update this version directly when making changes on website
+// Cache name format: site-name-v1.0.0
+const CACHE_NAME = `site-name-v${VERSION}`; // Change 'site-name' to your actual site name
+// Cache expiration time in milliseconds
+const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
+// Environment variable to control cache expiration
+// Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION.
+const ENVIRONMENT = 'production'; // Change to 'development' or 'production'.
+// Debugging flag to enable/disable console logs
+const DEBUG = false; // Set to false in production
 
 function log(...args) {
   if (DEBUG) {
@@ -119,7 +126,7 @@ self.addEventListener('fetch', event => {
               const cachedTime = new Date(cachedAt).getTime();
               const now = new Date().getTime();
 
-              if (now - cachedTime < CACHE_EXPIRATION) {
+              if (now - cachedTime < (ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))) {
                 return cachedResponse;
               }
             }
@@ -265,7 +272,8 @@ self.addEventListener('message', (event) => {
     event.ports[0].postMessage({
       version: VERSION,
       cacheName: CACHE_NAME,
-      cacheExpiration: msToHumanReadable(CACHE_EXPIRATION)
+      cacheExpiration: msToHumanReadable((ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))),
+      environment: ENVIRONMENT
     });
   }
 });

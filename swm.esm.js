@@ -1,12 +1,12 @@
 /**
- * Service Worker Manager ESM - v1.4.2
+ * Service Worker Manager ESM - v1.4.3
  * https://github.com/aalfiann/swm
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
 export class ServiceWorkerManager {
-  static VERSION = '1.4.2';
+  static VERSION = '1.4.3';
   static initialized = false;
   static _lastOptions = null;
 
