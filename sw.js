@@ -137,7 +137,16 @@ self.addEventListener('fetch', event => {
             });
 
             const cache = await caches.open(CACHE_NAME);
-            await cache.put(event.request, responseToStore);
+
+            if (event.request.url.startsWith('http')) {
+              try {
+                await cache.put(event.request, responseToStore);
+              } catch (cacheError) {
+                logError('Cache put error:', cacheError);
+              }
+            } else {
+              log('Skipping cache.put for non-http(s) request:', event.request.url);
+            }
 
             return response;
           })
