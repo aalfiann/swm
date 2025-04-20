@@ -66,7 +66,7 @@ const cachePatterns = [
   },
   {
     // Astro SSG assets if any
-    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|svg|woff2)$/,
+    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|gif|svg|woff2)$/,
     strategy: 'cache-first'
   },
   {
