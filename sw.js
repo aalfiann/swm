@@ -24,6 +24,7 @@ function logError(...args) {
 
 // Files to cache explicitly
 const urlsToCache = [
+  '/',
   '/favicon.ico'
 ];
 
@@ -31,7 +32,7 @@ const urlsToCache = [
 const cachePatterns = [
   {
     pattern: /^\/$/, // Homepage
-    strategy: 'cache-first'
+    strategy: 'network-first'
   },
   {
     pattern: /^\/(about|contact)\/$/, // another static page if any
@@ -39,7 +40,11 @@ const cachePatterns = [
   },
   {
     pattern: /^\/blog\/.*$/, // cache dynamic content page. i.e. /blog/* posts
-    strategy: 'cache-first'
+    strategy: 'network-first'
+  },
+  {
+    pattern: /^\/news\/.*$/, // cache dynamic content page. i.e. /news/* posts
+    strategy: 'network-first'
   },
   {
     pattern: /^\/js\/.+\.js$/, // Matches all .js files in /js/ directory
@@ -115,62 +120,91 @@ self.addEventListener('fetch', event => {
   const matchedPattern = matchesPattern(url);
 
   if (matchedPattern || urlsToCache.includes(new URL(url).pathname)) {
-    event.respondWith(
-      caches.match(event.request)
-        .then(async cachedResponse => {
-          if (cachedResponse) {
-            const headers = cachedResponse.headers;
-            const cachedAt = headers.get('cached-at');
+    const strategy = matchedPattern?.strategy || 'cache-first';
 
-            if (cachedAt) {
-              const cachedTime = new Date(cachedAt).getTime();
-              const now = new Date().getTime();
+    if (strategy === 'network-first') {
+      event.respondWith(
+        fetch(event.request)
+          .then(async (response) => {
+            const rawBody = await response.clone().arrayBuffer();
+            const headers = new Headers(response.headers);
+            headers.set('cached-at', new Date().toISOString());
 
-              if (now - cachedTime < (ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))) {
-                return cachedResponse;
-              }
-            }
-          }
-
-          try {
-            const response = await fetch(event.request.clone(), {
-              credentials: 'same-origin',
-              mode: 'cors' // Added for cross-origin requests like Google Fonts
+            const responseToStore = new Response(rawBody, {
+              status: response.status,
+              statusText: response.statusText,
+              headers
             });
 
-            if (!response || !response.ok) {
-              return cachedResponse || response;
-            }
-
-            const responseToCache = response.clone();
             const cache = await caches.open(CACHE_NAME);
-
-            const newHeaders = new Headers(response.headers);
-            newHeaders.append('cached-at', new Date().toISOString());
-
-            const responseToStore = new Response(responseToCache.body, {
-              status: responseToCache.status,
-              statusText: responseToCache.statusText,
-              headers: newHeaders
-            });
-
-            if (event.request.url.startsWith('http')) {
-              try {
-                await cache.put(event.request, responseToStore);
-              } catch (cacheError) {
-                logError('Cache put error:', cacheError);
-              }
-            } else {
-              log('Skipping cache.put for non-http(s) request:', event.request.url);
-            }
+            await cache.put(event.request, responseToStore);
 
             return response;
-          } catch (error) {
-            logError('Fetching failed:', error);
-            return cachedResponse || new Response('Network error', { status: 408 });
-          }
-        })
-    );
+          })
+          .catch(async () => {
+            const cachedResponse = await caches.match(event.request);
+            return cachedResponse || new Response('Offline and no cache available.', { status: 504 });
+          })
+      );
+    } else {
+      // Default cache-first
+      event.respondWith(
+        caches.match(event.request)
+          .then(async cachedResponse => {
+            if (cachedResponse) {
+              const headers = cachedResponse.headers;
+              const cachedAt = headers.get('cached-at');
+
+              if (cachedAt) {
+                const cachedTime = new Date(cachedAt).getTime();
+                const now = new Date().getTime();
+
+                if (now - cachedTime < (ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))) {
+                  return cachedResponse;
+                }
+              }
+            }
+
+            try {
+              const response = await fetch(event.request.clone(), {
+                credentials: 'same-origin',
+                mode: 'cors' // Added for cross-origin requests like Google Fonts
+              });
+
+              if (!response || !response.ok) {
+                return cachedResponse || response;
+              }
+
+              const responseToCache = response.clone();
+              const cache = await caches.open(CACHE_NAME);
+
+              const newHeaders = new Headers(response.headers);
+              newHeaders.append('cached-at', new Date().toISOString());
+
+              const responseToStore = new Response(responseToCache.body, {
+                status: responseToCache.status,
+                statusText: responseToCache.statusText,
+                headers: newHeaders
+              });
+
+              if (event.request.url.startsWith('http')) {
+                try {
+                  await cache.put(event.request, responseToStore);
+                } catch (cacheError) {
+                  logError('Cache put error:', cacheError);
+                }
+              } else {
+                log('Skipping cache.put for non-http(s) request:', event.request.url);
+              }
+
+              return response;
+            } catch (error) {
+              logError('Fetching failed:', error);
+              return cachedResponse || new Response('Network error', { status: 408 });
+            }
+          })
+      );
+    }
   } else {
     event.respondWith(
       fetch(event.request)
