@@ -36,7 +36,7 @@ const cachePatterns = [
   },
   {
     pattern: /^\/(about|contact)\/$/, // another static page if any
-    strategy: 'cache-first'
+    strategy: 'network-first'
   },
   {
     pattern: /^\/blog\/.*$/, // cache dynamic content page. i.e. /blog/* posts
@@ -51,12 +51,12 @@ const cachePatterns = [
     strategy: 'cache-first'
   },
   {
-    pattern: /^\/images\/.+\.(png|jpg|jpeg|gif|svg)$/, // Matches all images
+    pattern: /^\/images\/.+\.(png|jpg|jpeg|webp|gif|svg)$/, // Matches all images
     strategy: 'cache-first'
   },
   {
     // PWA assets
-    pattern: /^\/pwa\/.+\.(png|jpg|jpeg)$/,
+    pattern: /^\/pwa\/.+\.(png|jpg|jpeg|webp)$/,
     strategy: 'cache-first'
   },
   {
@@ -78,8 +78,16 @@ const cachePatterns = [
     // Google Fonts Files (actual font files)
     pattern: /^https:\/\/fonts\.gstatic\.com\//,
     strategy: 'cache-first'
+  },
+
+  // Add more patterns as needed here
+  // ...
+
+  // Fallback if no another pattern matches, use network-first strategy
+  {
+    pattern: /^\/.*$/,
+    strategy: 'network-first'
   }
-  // Add more patterns as needed
 ];
 
 // Helper function to check if URL matches any pattern
