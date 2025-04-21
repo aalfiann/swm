@@ -90,6 +90,51 @@ const cachePatterns = [
   }
 ];
 
+async function cleanUpExpiredCache() {
+  try {
+    if (!navigator.onLine) {
+      log('[Cache Cleanup] Skipped: offline mode.');
+      return;
+    }
+
+    log('[Cache Cleanup] Starting cleanup process.');
+    const cache = await caches.open(CACHE_NAME);
+    const requests = await cache.keys();
+
+    if (requests.length === 0) {
+      log('[Cache Cleanup] No cache to clean.');
+      return;
+    }
+
+    const now = Date.now();
+    const expiration = ENVIRONMENT === 'production' ? CACHE_EXPIRATION : 60 * 1000;
+    let deletedCount = 0;
+
+    const deletionTasks = requests.map(async (request) => {
+      try {
+        const response = await cache.match(request);
+        if (!response) return;
+
+        const cachedAt = response.headers.get('cached-at');
+        if (!cachedAt) return;
+
+        const cachedTime = new Date(cachedAt).getTime();
+        if (now - cachedTime > expiration) {
+          const success = await cache.delete(request);
+          if (success) deletedCount++;
+        }
+      } catch (err) {
+        logError('[Cache Cleanup] Error processing request:', request.url, err);
+      }
+    });
+
+    await Promise.allSettled(deletionTasks);
+    log(`[Cache Cleanup] Finished. Deleted ${deletedCount} expired item(s).`);
+  } catch (err) {
+    logError('[Cache Cleanup] Failed to clean cache:', err);
+  }
+}
+
 // Helper function to check if URL matches any pattern
 function matchesPattern(url) {
   try {
@@ -121,6 +166,11 @@ self.addEventListener('install', event => {
 
 // Fetch event with improved error handling
 self.addEventListener('fetch', event => {
+  // Only 0.5% request trigger cleanup
+  if (Math.random() < 0.005) {
+    cleanUpExpiredCache();
+  }
+
   // Ignore non-GET requests
   if (event.request.method !== 'GET') return;
 
@@ -158,9 +208,12 @@ self.addEventListener('fetch', event => {
 
             return response;
           })
-          .catch(async () => {
+          .catch(async (error) => {
+            logError('Network fetch failed:', error, event.request.url);
             const cachedResponse = await caches.match(event.request);
-            return cachedResponse || new Response('Offline and no cache available.', { status: 504 });
+            if (cachedResponse) return cachedResponse;
+
+            throw error; // Let browser handle the error
           })
       );
     } else {
