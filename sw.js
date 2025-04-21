@@ -184,6 +184,12 @@ self.addEventListener('fetch', event => {
       event.respondWith(
         fetch(event.request)
           .then(async (response) => {
+            if (response.type === 'opaque') {
+              // Handle opaque response, e.g., return it directly without caching
+              logError('Opaque response encountered:', event.request.url);
+              return response;
+            }
+
             const rawBody = await response.clone().arrayBuffer();
             const headers = new Headers(response.headers);
             headers.set('cached-at', new Date().toISOString());
@@ -240,6 +246,12 @@ self.addEventListener('fetch', event => {
                 credentials: 'same-origin',
                 mode: 'cors' // Added for cross-origin requests like Google Fonts
               });
+
+              if (response.type === 'opaque') {
+                // Handle opaque response, e.g., return it directly without caching
+                logError('Opaque response encountered:', event.request.url);
+                return response;
+              }
 
               if (!response || !response.ok) {
                 return cachedResponse || response;
