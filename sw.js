@@ -31,42 +31,13 @@ const urlsToCache = [
 // Pattern matching rules
 const cachePatterns = [
   {
-    pattern: /^\/$/, // Homepage
-    strategy: 'network-first'
-  },
-  {
-    pattern: /^\/(about|contact)\/$/, // another static page if any
-    strategy: 'network-first'
-  },
-  {
-    pattern: /^\/blog\/.*$/, // cache dynamic content page. i.e. /blog/* posts
-    strategy: 'network-first'
-  },
-  {
-    pattern: /^\/news\/.*$/, // cache dynamic content page. i.e. /news/* posts
-    strategy: 'network-first'
-  },
-  {
-    pattern: /^\/js\/.+\.js$/, // Matches all .js files in /js/ directory
-    strategy: 'cache-first'
-  },
-  {
-    pattern: /^\/images\/.+\.(png|jpg|jpeg|webp|gif|svg)$/, // Matches all images
-    strategy: 'cache-first'
-  },
-  {
     // PWA assets
     pattern: /^\/pwa\/.+\.(png|jpg|jpeg|webp)$/,
     strategy: 'cache-first'
   },
   {
-    // Local fonts
-    pattern: /^\/fonts\/.+\.(woff|woff2|eot|ttf|otf)$/,
-    strategy: 'cache-first'
-  },
-  {
-    // Astro SSG assets if any
-    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|gif|svg|woff2)$/,
+    // Astro SSG assets if any (you can delete this if not using Astro)
+    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,
     strategy: 'cache-first'
   },
   {
@@ -83,9 +54,14 @@ const cachePatterns = [
   // Add more patterns as needed here
   // ...
 
+  // Don't remove this below, it will be used as a fallback
   // Fallback if no another pattern matches, use network-first strategy
   {
-    pattern: /^\/.*$/,
+    pattern: /^\/$/, // Default Homepage
+    strategy: 'network-first'
+  },
+  {
+    pattern: /^\/.*$/, // Matches all other requests
     strategy: 'network-first'
   }
 ];
