@@ -55,24 +55,19 @@ const cachePatterns = [
   // ...
 
   // Don't remove this below, it will be used as a fallback
-  // Fallback if no another pattern matches, use network-first strategy
+  // Fallback if no another pattern matches, use strategy based on environment
   {
     pattern: /^\/$/, // Default Homepage
-    strategy: 'network-first'
+    strategy: (ENVIRONMENT === 'production' ? 'stale-while-revalidate' : 'network-first')
   },
   {
     pattern: /^\/.*$/, // Matches all other requests
-    strategy: 'network-first'
+    strategy: (ENVIRONMENT === 'production' ? 'stale-while-revalidate' : 'network-first')
   }
 ];
 
 async function cleanUpExpiredCache() {
   try {
-    if (!navigator.onLine) {
-      log('[Cache Cleanup] Skipped: offline mode.');
-      return;
-    }
-
     log('[Cache Cleanup] Starting cleanup process.');
     const cache = await caches.open(CACHE_NAME);
     const requests = await cache.keys();
@@ -128,15 +123,25 @@ function matchesPattern(url) {
 self.addEventListener('install', event => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then(cache => {
+      .then(async (cache) => {
         log('Cache opened');
-        return cache.addAll(urlsToCache);
+
+        const cachingTasks = urlsToCache.map(async (url) => {
+          try {
+            await cache.add(url);
+            log('Cached:', url);
+          } catch (error) {
+            logError('Failed to cache:', url, error);
+          }
+        });
+
+        await Promise.allSettled(cachingTasks);
       })
       .catch(error => {
         logError('Cache installation failed:', error);
       })
   );
-  // Optional: immediately activate the service worker
+
   self.skipWaiting();
 });
 
@@ -166,19 +171,19 @@ self.addEventListener('fetch', event => {
               return response;
             }
 
-            const rawBody = await response.clone().arrayBuffer();
-            const headers = new Headers(response.headers);
-            headers.set('cached-at', new Date().toISOString());
-
-            const responseToStore = new Response(rawBody, {
-              status: response.status,
-              statusText: response.statusText,
-              headers
-            });
-
-            const cache = await caches.open(CACHE_NAME);
-
             if (event.request.url.startsWith('http')) {
+              const rawBody = await response.clone().arrayBuffer();
+              const headers = new Headers(response.headers);
+              headers.set('cached-at', new Date().toISOString());
+
+              const responseToStore = new Response(rawBody, {
+                status: response.status,
+                statusText: response.statusText,
+                headers
+              });
+
+              const cache = await caches.open(CACHE_NAME);
+
               try {
                 await cache.put(event.request, responseToStore);
               } catch (cacheError) {
@@ -194,9 +199,65 @@ self.addEventListener('fetch', event => {
             logError('Network fetch failed:', error, event.request.url);
             const cachedResponse = await caches.match(event.request);
             if (cachedResponse) return cachedResponse;
-
             throw error; // Let browser handle the error
           })
+      );
+    } else if (strategy === 'stale-while-revalidate') {
+      event.respondWith(
+        caches.match(event.request).then(cachedResponse => {
+          const fetchPromise = fetch(event.request)
+            .then(async networkResponse => {
+              if (networkResponse.type === 'opaque') {
+                logError('SWR: Opaque response encountered:', event.request.url);
+                return networkResponse;
+              }
+
+              if (!networkResponse || !networkResponse.ok) {
+                logError('SWR: Network response not OK:', networkResponse.status);
+                if (cachedResponse) {
+                  return cachedResponse;
+                } else {
+                  throw networkResponse; // Let browser handle the error
+                }
+              }
+
+              if (event.request.url.startsWith('http')) {
+                const clonedResponse = networkResponse.clone();
+                const cache = await caches.open(CACHE_NAME);
+
+                const headers = new Headers(clonedResponse.headers);
+                headers.set('cached-at', new Date().toISOString());
+
+                const responseToStore = new Response(clonedResponse.body, {
+                  status: clonedResponse.status,
+                  statusText: clonedResponse.statusText,
+                  headers
+                });
+
+                try {
+                  await cache.put(event.request, responseToStore);
+                } catch (err) {
+                  logError('SWR: Cache put error:', err);
+                }
+              } else {
+                log('SWR: Skipping cache.put for non-http(s) request:', event.request.url);
+              }
+
+              return networkResponse;
+            })
+            .catch(error => {
+              logError('SWR fetch failed:', error);
+              if (cachedResponse) return cachedResponse;
+              throw error; // Let browser handle the error
+            });
+
+          if (cachedResponse) {
+            // Trigger revalidation in background, but still return cache
+            fetchPromise.catch(() => {}); // suppress unhandled promise warning
+            return cachedResponse;
+          }
+          return fetchPromise;
+        })
       );
     } else {
       // Default cache-first
@@ -233,19 +294,19 @@ self.addEventListener('fetch', event => {
                 return cachedResponse || response;
               }
 
-              const responseToCache = response.clone();
-              const cache = await caches.open(CACHE_NAME);
-
-              const newHeaders = new Headers(response.headers);
-              newHeaders.append('cached-at', new Date().toISOString());
-
-              const responseToStore = new Response(responseToCache.body, {
-                status: responseToCache.status,
-                statusText: responseToCache.statusText,
-                headers: newHeaders
-              });
-
               if (event.request.url.startsWith('http')) {
+                const responseToCache = response.clone();
+                const cache = await caches.open(CACHE_NAME);
+
+                const newHeaders = new Headers(response.headers);
+                newHeaders.append('cached-at', new Date().toISOString());
+
+                const responseToStore = new Response(responseToCache.body, {
+                  status: responseToCache.status,
+                  statusText: responseToCache.statusText,
+                  headers: newHeaders
+                });
+
                 try {
                   await cache.put(event.request, responseToStore);
                 } catch (cacheError) {
@@ -258,7 +319,8 @@ self.addEventListener('fetch', event => {
               return response;
             } catch (error) {
               logError('Fetching failed:', error);
-              return cachedResponse || new Response('Network error', { status: 408 });
+              if (cachedResponse) return cachedResponse;
+              throw error; // Let browser handle the error
             }
           })
       );
@@ -268,7 +330,7 @@ self.addEventListener('fetch', event => {
       fetch(event.request)
         .catch(error => {
           logError('Fetch error:', error);
-          return new Response('Network error', { status: 408 });
+          throw error; // Let browser handle the error
         })
     );
   }
@@ -327,7 +389,6 @@ self.addEventListener("push", event => {
 
 // Handle notification clicks (compatible with FCM and regular push)
 self.addEventListener('notificationclick', event => {
-  event.preventDefault();
   event.notification.close();
 
   const url = (event.notification && event.notification.data && event.notification.data.url) || '/';
@@ -361,11 +422,13 @@ self.addEventListener('message', (event) => {
       return 'less than a minute';
     };
 
-    event.ports[0].postMessage({
-      version: VERSION,
-      cacheName: CACHE_NAME,
-      cacheExpiration: msToHumanReadable((ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))),
-      environment: ENVIRONMENT
-    });
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({
+        version: VERSION,
+        cacheName: CACHE_NAME,
+        cacheExpiration: msToHumanReadable((ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))),
+        environment: ENVIRONMENT
+      });
+    }
   }
 });
