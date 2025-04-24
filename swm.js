@@ -1,5 +1,5 @@
 /**
- * Service Worker Manager - v1.7.0
+ * Service Worker Manager - v1.8.0
  * https://github.com/aalfiann/swm
  */
 (function () {
@@ -11,7 +11,7 @@
   }
 
   class ServiceWorkerManager {
-    static VERSION = '1.7.0';
+    static VERSION = '1.8.0';
     static initialized = false;
     static _lastOptions = null;
 
@@ -58,6 +58,9 @@
       this._lastOptions = options;
 
       const {
+        // Set Service Worker path
+        swPath = '/sw.js',
+        // Allow localhost for development
         allowLocalhost = false,
         // FCM options
         enableFCM = false,
@@ -173,7 +176,7 @@
             }
           }
 
-          const registration = await navigator.serviceWorker.register('/sw.js');
+          const registration = await navigator.serviceWorker.register(swPath);
           console.log('ServiceWorker registered');
 
           // Handle FCM if enabled

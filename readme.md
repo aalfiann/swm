@@ -1,18 +1,22 @@
 # SWM
 Service Worker Manager  
-This project is to simplify using Service Worker for common PWA Project.
 
-## SWM Basic Features
-- [x] Offline First functionality
+A `modular`, `scalable` and `production-ready` Service Worker + Service Worker Manager. This project is to simplify using Service Worker for any websites with the use of PWA.
+
+
+## Service Worker Features
+- [x] Modular and Scalable
+- [x] Offline functionality
 - [x] Performance optimization
-- [x] Resource caching
 - [x] Cache version control
-- [x] Automatic cache cleanup
+- [x] Pattern-based caching
+- [x] Multiple Cache Strategy
+- [x] Automatic and Scheduled cache cleanup
 - [x] Handles silent auto-updates
 - [x] Development flexibility
 - [x] Includes fallback and error handling
 
-## SWM Additional Features
+## Service Worker Manager Features
 - [x] Support Push Message FCM
 - [x] Support GPS Location
 - [x] Support Battery Monitoring
@@ -31,6 +35,7 @@ This project is to simplify using Service Worker for common PWA Project.
 Note:  
 - To keep size always minimal, only common device APIs were implemented.
 - You're able to use this Service Worker Manager for websites non PWA.
+- Service Worker is modular, you're able to use `sw.js` only without `swm.js`.
 
 
 ### Usage
