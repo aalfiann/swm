@@ -1,3 +1,6 @@
+//-----------------------
+// CONFIGURATION
+//-----------------------
 // This version is used to invalidate the cache when the service worker is updated
 const VERSION = '1.0.0'; // Update this version directly when making changes on website
 // Cache name format: site-name-v1.0.0
@@ -6,27 +9,12 @@ const CACHE_NAME = `site-name-v${VERSION}`; // Change 'site-name' to your actual
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 // Cache cleanup will clean up all caches older than CACHE_EXPIRATION
 const CACHE_CLEANUP_ENABLED = false;  // If your site is small, better set this to false.
-const CACHE_CLEANUP_DELAY = 5 * 60 * 1000; // 5 minutes
-const CACHE_CLEANUP_INTERVAL = 12 * 60 * 60 * 1000 // 12 hours
+const CACHE_CLEANUP_INTERVAL = 8 * 60 * 60 * 1000 // 8 hours
 // Environment variable to control cache expiration
 // Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION.
 const ENVIRONMENT = 'production'; // Change to 'development' or 'production'.
 // Debugging flag to enable/disable console logs
 const DEBUG = false; // Set to false in production
-
-importScripts('https://cdn.jsdelivr.net/npm/idb-keyval@3/dist/idb-keyval-iife.min.js');
-
-function log(...args) {
-  if (DEBUG) {
-    console.log('[ServiceWorker]', ...args);
-  }
-}
-
-function logError(...args) {
-  if (DEBUG) {
-    console.error('[ServiceWorker Error]', ...args);
-  }
-}
 
 // Files to cache explicitly
 const urlsToCache = [
@@ -72,6 +60,61 @@ const cachePatterns = [
   }
 ];
 
+//-----------------------
+// Service Worker
+//-----------------------
+function log(...args) {
+  if (DEBUG) {
+    console.log('[ServiceWorker]', ...args);
+  }
+}
+
+function logError(...args) {
+  if (DEBUG) {
+    console.error('[ServiceWorker Error]', ...args);
+  }
+}
+
+// Inlined idb-keyval library
+const idbKeyval = (() => {
+  const dbName = 'sw-store';
+  const storeName = 'sw-cache-cleanup';
+  let store;
+
+  const getStore = () => {
+    if (!store) store = new Promise((resolve, reject) => {
+      const request = indexedDB.open(dbName, 1);
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => resolve(request.result);
+      request.onupgradeneeded = e => {
+        e.target.result.createObjectStore(storeName);
+      };
+    });
+    return store;
+  };
+
+  return {
+    async get(key) {
+      const db = await getStore();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const request = tx.objectStore(storeName).get(key);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve(request.result);
+      });
+    },
+    async set(key, value) {
+      const db = await getStore();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const request = tx.objectStore(storeName).put(value, key);
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = () => resolve();
+      });
+    }
+  };
+})();
+
 async function shouldRunCleanup() {
   if(CACHE_CLEANUP_ENABLED === false) {
     return false;
@@ -91,7 +134,7 @@ async function shouldRunCleanup() {
     });
 
     // Delay before cleanup after installation
-    if (now - installedAt < CACHE_CLEANUP_DELAY) {
+    if (now - installedAt < 6e5) {
       log('[Cache Cleanup] Skipped, too early for cleanup');
       return false;
     }
@@ -114,6 +157,7 @@ async function cleanUpExpiredCache() {
 
     if (requests.length === 0) {
       log('[Cache Cleanup] No cache to clean.');
+      self._cleanupScheduled = false;
       return;
     }
 
@@ -142,6 +186,8 @@ async function cleanUpExpiredCache() {
     log(`[Cache Cleanup] Finished. Deleted ${deletedCount} expired item(s).`);
   } catch (err) {
     logError('[Cache Cleanup] Failed to clean cache:', err);
+  } finally {
+    self._cleanupScheduled = false;
   }
 }
 
@@ -194,13 +240,16 @@ async function handleFetch(event) {
   const matchedPattern = matchesPattern(url);
 
   // Trigger auto cleanup asynchronously
-  if (await shouldRunCleanup()) {
+  if (!self._cleanupScheduled && await shouldRunCleanup()) {
+    self._cleanupScheduled = true;
     try {
       await idbKeyval.set('sw-last-cleanup', Date.now());
     } catch (e) {
-      logError('[IndexedDB] Set error:', e);
+      logError('[IDB] Set error:', e);
     }
-    cleanUpExpiredCache();
+    setTimeout(() => {
+      cleanUpExpiredCache();
+    }, 3e4);
   }
 
   const strategy = matchedPattern?.strategy || (urlsToCache.includes(new URL(url).pathname) ? 'cache-first' : null);
