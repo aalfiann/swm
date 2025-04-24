@@ -34,14 +34,23 @@ A `modular`, `scalable` and `production-ready` Service Worker + Service Worker M
 
 Note:  
 - To keep size always minimal, only common device APIs were implemented.
-- You're able to use this Service Worker Manager for websites non PWA.
+- You're able to use this Service Worker Manager for PWA or non PWA websites.
 - Service Worker is modular, you're able to use `sw.js` only without `swm.js`.
+- Service Worker Manager is also modular, you're able to use `swm.js` only without `sw.js`.
+
+Example using SWM with your own Service Worker
+```js
+  ServiceWorkerManager.register({
+    swPath: '/your-sw.js',
+    scope: '/'
+  });
+```
 
 
 ### Usage
 1. Just put `sw.js`, `swm.js` and `manifest.json` in root or public directories.
 
-2. Create `<script>` tags on all pages of your website.
+2. Create `<script>` tags on index / home page of your website.
 ```html
 <script src="/swm.js"></script>
 <script>

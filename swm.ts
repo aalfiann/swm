@@ -1,5 +1,5 @@
 /**
- * Service Worker Manager TS - v1.8.0
+ * Service Worker Manager TS - v1.9.0
  * https://github.com/aalfiann/swm
  */
 import { FirebaseApp, initializeApp, FirebaseOptions } from "firebase/app";
@@ -8,6 +8,7 @@ import { Messaging, getMessaging, getToken } from "firebase/messaging";
 // Type definitions
 export interface ServiceWorkerManagerOptions {
   swPath?: string;
+  scope?: string;
   allowLocalhost?: boolean;
   enableFCM?: boolean;
   firebaseConfig?: FirebaseOptions;
@@ -220,7 +221,7 @@ export class APIFallbacks {
 }
 
 export class ServiceWorkerManager {
-  static VERSION: string = '1.8.0';
+  static VERSION: string = '1.9.0';
   static initialized: boolean = false;
   static _lastOptions: ServiceWorkerManagerOptions | null = null;
 
@@ -268,6 +269,7 @@ export class ServiceWorkerManager {
 
     const {
       swPath = '/sw.js',
+      scope = null,
       allowLocalhost = false,
       enableFCM = false,
       firebaseConfig = null,
@@ -369,7 +371,8 @@ export class ServiceWorkerManager {
           }
         }
 
-        const registration = await navigator.serviceWorker.register(swPath);
+        const registrationOptions: RegistrationOptions | undefined = scope ? { scope } : undefined;
+        const registration = await navigator.serviceWorker.register(swPath, registrationOptions);
         console.log('ServiceWorker registered');
 
         if (enableFCM && firebaseConfig && vapidKey) {
