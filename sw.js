@@ -316,7 +316,7 @@ async function handleFetch(event) {
           return networkResponse;
         }
 
-        if (response.ok && event.request.url.startsWith('http')) {
+        if (networkResponse.ok && event.request.url.startsWith('http')) {
           const clonedResponse = networkResponse.clone();
           const headers = new Headers(clonedResponse.headers);
           headers.set('cached-at', new Date().toISOString());
