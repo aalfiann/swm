@@ -1,5 +1,5 @@
 /**
- * Service Worker Manager TS - v1.9.2
+ * Service Worker Manager TS - v1.10.0
  * https://github.com/aalfiann/swm
  */
 import { FirebaseApp, initializeApp, FirebaseOptions } from "firebase/app";
@@ -109,8 +109,21 @@ export interface ServiceWorkerStatus {
 
 export interface SWConfig {
   version: string;
+  environment: string;
+  debug: boolean;
   cacheName: string;
   cacheExpiration: number;
+  cacheCleanupEnabled: boolean;
+  cacheCleanupInterval: number;
+}
+
+export interface SWCleanupStatus {
+  lastCleanup: string;
+  installedAt: string;
+  now: string;
+  timeSinceInstall: number;
+  timeSinceLastCleanup: number;
+  nextCleanup: string;
 }
 
 export interface ErrorDetail {
@@ -221,7 +234,7 @@ export class APIFallbacks {
 }
 
 export class ServiceWorkerManager {
-  static VERSION: string = '1.9.2';
+  static VERSION: string = '1.10.0';
   static initialized: boolean = false;
   static _lastOptions: ServiceWorkerManagerOptions | null = null;
 
@@ -974,8 +987,12 @@ export class ServiceWorkerManager {
   static async getSWConfig(): Promise<SWConfig> {
     const fallbackResult: SWConfig = {
       version: 'unknown',
+      environment: 'unknown',
+      debug: false,
       cacheName: 'unknown',
-      cacheExpiration: 0
+      cacheExpiration: 0,
+      cacheCleanupEnabled: false,
+      cacheCleanupInterval: 0
     };
 
     const controller = navigator.serviceWorker?.controller;
@@ -1005,6 +1022,48 @@ export class ServiceWorkerManager {
       } catch (error) {
         clearTimeout(timeout);
         this.dispatchError('sw-config', error as Error);
+        resolve(fallbackResult);
+      }
+    });
+  }
+
+  static async getSWCleanupStatus(): Promise<SWCleanupStatus> {
+    const fallbackResult: SWCleanupStatus = {
+      lastCleanup: 'unknown',
+      installedAt: 'unknown',
+      now: 'unknown',
+      timeSinceInstall: 0,
+      timeSinceLastCleanup: 0,
+      nextCleanup: 'unknown'
+    };
+
+    const controller = navigator.serviceWorker?.controller;
+    if (!controller) {
+      this.dispatchError('sw-cleanup-status', 'ServiceWorker not active');
+      return fallbackResult;
+    }
+
+    return new Promise<SWCleanupStatus>((resolve) => {
+      const timeout = setTimeout(() => {
+        this.dispatchError('sw-cleanup-status', 'Request timed out');
+        resolve(fallbackResult);
+      }, 3000);
+
+      const channel = new MessageChannel();
+
+      channel.port1.onmessage = (event: MessageEvent) => {
+        clearTimeout(timeout);
+        resolve(event.data as SWCleanupStatus);
+      };
+
+      try {
+        controller.postMessage(
+          { type: 'GET_SW_CLEANUP_STATUS' },
+          [channel.port2]
+        );
+      } catch (error) {
+        clearTimeout(timeout);
+        this.dispatchError('sw-cleanup-status', error as Error);
         resolve(fallbackResult);
       }
     });

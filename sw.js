@@ -8,7 +8,7 @@ const CACHE_NAME = `site-name-v${VERSION}`; // Change 'site-name' to your actual
 // Cache expiration will keep the cache until the specified time
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 // Cache cleanup will clean up all caches older than CACHE_EXPIRATION
-const CACHE_CLEANUP_ENABLED = false;  // If your site is small, better set this to false.
+const CACHE_CLEANUP_ENABLED = true;  // If your site is small (below 10 pages), better set this to false.
 const CACHE_CLEANUP_INTERVAL = 8 * 60 * 60 * 1000 // 8 hours
 // Environment variable to control cache expiration
 // Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION.
@@ -75,6 +75,25 @@ function logError(...args) {
   }
 }
 
+function formatLocalTime(date) {
+  if (!date) return 'Never';
+  const d = new Date(date);
+  const pad = (n) => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ` +
+         `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function msToHumanReadable (ms) {
+  const days = Math.floor(ms / (24 * 60 * 60 * 1000));
+  const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+  const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
+
+  if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'}`;
+  if (hours > 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+  return 'less than a minute';
+};
+
 // Inlined idb-keyval library
 const idbKeyval = (() => {
   const dbName = 'sw-store';
@@ -125,24 +144,11 @@ async function shouldRunCleanup() {
     const now = Date.now();
     const installedAt = await idbKeyval.get('sw-installed-at') || now;
 
-    log('[cache-cleanup] Check:', {
-      lastCleanup: new Date(last),
-      installedAt: new Date(installedAt),
-      now: new Date(now),
-      timeSinceInstall: now - installedAt,
-      timeSinceLastCleanup: now - (last || 0)
-    });
-
     // Delay before cleanup after installation
-    if (now - installedAt < 6e5) {
-      log('[cache-cleanup] Skipped, too early for cleanup');
-      return false;
-    }
+    if (now - installedAt < 6e5) return false;
 
     // Cleanup if last cleanup was more than CACHE_CLEANUP_INTERVAL
-    const shouldClean = !last || (now - last > CACHE_CLEANUP_INTERVAL);
-    log('[cache-cleanup] Should run:', shouldClean);
-    return shouldClean;
+    return !last || (now - last > CACHE_CLEANUP_INTERVAL);
   } catch (e) {
     logError('[cache-cleanup] Error:', e);
     return false;
@@ -476,28 +482,51 @@ self.addEventListener('notificationclick', event => {
   );
 });
 
-// Handle isolated messages for getting sw config
-self.addEventListener('message', (event) => {
-  if (event.data.type === 'GET_SW_CONFIG') {
-    // Convert milliseconds to human readable format
-    const msToHumanReadable = (ms) => {
-      const days = Math.floor(ms / (24 * 60 * 60 * 1000));
-      const hours = Math.floor((ms % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
-      const minutes = Math.floor((ms % (60 * 60 * 1000)) / (60 * 1000));
-
-      if (days > 0) return `${days} ${days === 1 ? 'day' : 'days'}`;
-      if (hours > 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
-      if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
-      return 'less than a minute';
-    };
-
-    if (event.ports && event.ports[0]) {
-      event.ports[0].postMessage({
-        version: VERSION,
-        cacheName: CACHE_NAME,
-        cacheExpiration: msToHumanReadable((ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000))),
-        environment: ENVIRONMENT
-      });
-    }
+// Listen for messages from the main thread
+self.addEventListener('message', async (event) => {
+  switch (event.data.type) {
+    case 'GET_SW_CONFIG':
+      await handleGetSWConfig(event);
+      break;
+    case 'GET_SW_CLEANUP_STATUS':
+      await handleGetSWCleanupStatus(event);
+      break;
   }
 });
+
+// Handler for GET_SW_CONFIG
+async function handleGetSWConfig(event) {
+  if (event.ports && event.ports[0]) {
+    event.ports[0].postMessage({
+      version: VERSION,
+      environment: ENVIRONMENT,
+      debug: DEBUG,
+      cacheName: CACHE_NAME,
+      cacheExpiration: msToHumanReadable(
+        ENVIRONMENT === 'production' ? CACHE_EXPIRATION : (60 * 1000)
+      ),
+      cacheCleanupEnabled: CACHE_CLEANUP_ENABLED,
+      cacheCleanupInterval: msToHumanReadable(CACHE_CLEANUP_INTERVAL),
+    });
+  }
+}
+
+// Handler for GET_SW_CLEANUP_STATUS
+async function handleGetSWCleanupStatus(event) {
+  if (!CACHE_CLEANUP_ENABLED || !event.ports || !event.ports[0]) return;
+
+  const now = Date.now();
+  const last = await idbKeyval.get('sw-last-cleanup');
+  const installedAt = await idbKeyval.get('sw-installed-at') || now;
+
+  const cacheCleanupStats = {
+    lastCleanup: formatLocalTime(last),
+    installedAt: formatLocalTime(installedAt),
+    now: formatLocalTime(now),
+    timeSinceInstall: now - installedAt,
+    timeSinceLastCleanup: now - (last || 0),
+    nextCleanup: formatLocalTime((last || now) + CACHE_CLEANUP_INTERVAL),
+  };
+
+  event.ports[0].postMessage(cacheCleanupStats);
+}

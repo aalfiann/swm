@@ -1,12 +1,12 @@
 /**
- * Service Worker Manager ESM - v1.9.2
+ * Service Worker Manager ESM - v1.10.0
  * https://github.com/aalfiann/swm
  */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-messaging.js";
 
 export class ServiceWorkerManager {
-  static VERSION = '1.9.2';
+  static VERSION = '1.10.0';
   static initialized = false;
   static _lastOptions = null;
 
@@ -797,8 +797,13 @@ export class ServiceWorkerManager {
   static async getSWConfig() {
     const fallbackResult = {
       version: 'unknown',
+      environment: 'unknown',
+      debug: false,
       cacheName: 'unknown',
-      cacheExpiration: 0
+      cacheExpiration: 0,
+      cacheCleanupEnabled: false,
+      cacheCleanupInterval: 0
+
     };
 
     if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
@@ -828,6 +833,48 @@ export class ServiceWorkerManager {
       } catch (error) {
         clearTimeout(timeout);
         this.dispatchError('sw-config', error);
+        resolve(fallbackResult);
+      }
+    });
+  }
+
+  static async getSWCleanupStatus() {
+    const fallbackResult = {
+      lastCleanup: 'unknown',
+      installedAt: 'unknown',
+      now: 'unknown',
+      timeSinceInstall: 0,
+      timeSinceLastCleanup: 0,
+      nextCleanup: 'unknown'
+    };
+
+    if (!navigator.serviceWorker || !navigator.serviceWorker.controller) {
+      this.dispatchError('sw-cleanup-status', 'ServiceWorker not active');
+      return fallbackResult;
+    }
+
+    return new Promise((resolve) => {
+      // Set timeout to prevent hanging
+      const timeout = setTimeout(() => {
+        this.dispatchError('sw-cleanup-status', 'Request timed out');
+        resolve(fallbackResult);
+      }, 3000);
+
+      const channel = new MessageChannel();
+
+      channel.port1.onmessage = (event) => {
+        clearTimeout(timeout);
+        resolve(event.data);
+      };
+
+      try {
+        navigator.serviceWorker.controller.postMessage(
+          { type: 'GET_SW_CLEANUP_STATUS' },
+          [channel.port2]
+        );
+      } catch (error) {
+        clearTimeout(timeout);
+        this.dispatchError('sw-cleanup-status', error);
         resolve(fallbackResult);
       }
     });

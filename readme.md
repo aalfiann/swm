@@ -125,6 +125,7 @@ Check the `Console` or `Application` in DevTools browser to see what happening.
 - `async ServiceWorkerManager.reset();`
 - `async ServiceWorkerManager.cleanup();`
 - `async ServiceWorkerManager.getSWConfig();`
+- `async ServiceWorkerManager.getSWCleanupStatus();`
 - `APISupport;`
 
 

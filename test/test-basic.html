@@ -16,9 +16,14 @@
         allowLocalhost: true
       });
 
-      // get sw config
-      ServiceWorkerManager.getSWConfig().then(config => {
-        console.log('SW Config:', config);
+      // get sw config [optional]
+      ServiceWorkerManager.getSWConfig().then(data => {
+        console.log('SW Config:', data);
+      });
+
+      // get sw cleanup status [optional]
+      ServiceWorkerManager.getSWCleanupStatus().then(data => {
+        console.log('SW Cleanup Status:', data);
       });
 
       // service worker error listener
