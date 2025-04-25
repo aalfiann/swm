@@ -44,6 +44,11 @@ const cachePatterns = [
     pattern: /^https:\/\/fonts\.gstatic\.com\//,
     strategy: 'cache-first'
   },
+  {
+    // Cloudflare Insights
+    pattern: /^https:\/\/static\.cloudflareinsights\.com\//,
+    strategy: 'network-only'
+  },
 
   // Add more patterns as needed here
   // ...
@@ -264,6 +269,28 @@ async function handleFetch(event) {
     return fetch(event.request).catch(error => {
       logError('[handle-fetch] Fetch error:', error);
       throw error;
+    });
+  }
+
+  if (strategy === 'cache-only') {
+    const cached = await caches.match(event.request);
+    if (cached) {
+      log('[cache-only] Serving from cache:', event.request.url);
+      return cached;
+    }
+
+    logError('[cache-only] Not found in cache:', event.request.url);
+    return new Response('Resource not available offline.', {
+      status: 504,
+      statusText: 'Gateway Timeout',
+      headers: { 'Content-Type': 'text/plain' }
+    });
+  }
+
+  if (strategy === 'network-only') {
+    return fetch(event.request).catch(error => {
+      logError('[network-only] Fetch failed:', error, event.request.url);
+      return new Response('', { status: 204, statusText: 'No Content' });
     });
   }
 

@@ -56,6 +56,43 @@ Here is the example using SWM with your own Service Worker
   });
 ```
 
+## Multiple Strategy
+Our sw.js has already support to use multiple strategy and you can setup it by regex pattern.
+
+| Strategy | Fast Respons? | Fresh Data? | Best for |
+|----------|---------------|-------------|-------------|
+| cache-first | ✅ | ❌ | Static assets (CSS, JS, images) |
+| network-first | ❌ | ✅ | HTML, dynamic content |
+| stale-while-revalidate | ✅ | ✅ (slow) | Blog, article, PWA |
+| network-only | ❌ | ✅ | Beacon, tracking, login |
+| cache-only | ✅ | ❌ | Offline app, game |
+
+Example cache pattern-based  
+```js
+const cachePatterns = [
+  {
+    // PWA assets
+    pattern: /^\/pwa\/.+\.(png|jpg|jpeg|webp)$/,
+    strategy: 'cache-first'
+  },
+  {
+    // Cloudflare insights
+    pattern: /^https:\/\/static\.cloudflareinsights\.com\//,
+    strategy: 'network-only'
+  },
+  {
+    // Default Homepage
+    pattern: /^\/$/,
+    strategy: 'network-first'
+  },
+  {
+    // Matches all other requests
+    pattern: /^\/.*$/,
+    strategy: 'stale-while-revalidate'
+  }  
+];
+```
+
 
 ### Usage
 1. Just put `sw.js`, `swm.js` and `manifest.json` in root or public directories.
