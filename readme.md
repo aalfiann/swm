@@ -1,7 +1,10 @@
 # SWM
-Service Worker Manager  
+Service Worker + Manager  
 
-A `modular`, `scalable` and `production-ready` Service Worker + Service Worker Manager. This project is to simplify using Service Worker for any websites with the use of PWA.
+A `modular`, `scalable` and `production-ready` Service Worker + Manager.  
+
+
+The purpose of this project is to simplify using Service Worker for any websites with the use of PWA. If you need more advanced features you can go with [workbox](https://github.com/GoogleChrome/workbox), but for me, I don't use it because the features is too bloated and the code size very large than this project.
 
 
 ## Service Worker Features
@@ -38,7 +41,14 @@ Note:
 - Service Worker is modular, you're able to use `sw.js` only without `swm.js`.
 - Service Worker Manager is also modular, you're able to use `swm.js` only without `sw.js`.
 
-Example using SWM with your own Service Worker
+
+### Configuration
+This project is already included with `sw.js`. I have already create the default configuration, but yes you have to adjust it to your website.
+
+Note:  
+If you don't want to use our `sw.js`, yes you can use your own sw.js.
+
+Here is the example using SWM with your own Service Worker
 ```js
   ServiceWorkerManager.register({
     swPath: '/your-sw.js',
@@ -50,7 +60,7 @@ Example using SWM with your own Service Worker
 ### Usage
 1. Just put `sw.js`, `swm.js` and `manifest.json` in root or public directories.
 
-2. Create `<script>` tags on index / home page of your website.
+2. Create `<script>` tags on layout or home page of your website.
 ```html
 <script src="/swm.js"></script>
 <script>

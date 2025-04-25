@@ -125,7 +125,7 @@ async function shouldRunCleanup() {
     const now = Date.now();
     const installedAt = await idbKeyval.get('sw-installed-at') || now;
 
-    log('[Cache Cleanup] Check:', {
+    log('[cache-cleanup] Check:', {
       lastCleanup: new Date(last),
       installedAt: new Date(installedAt),
       now: new Date(now),
@@ -135,28 +135,28 @@ async function shouldRunCleanup() {
 
     // Delay before cleanup after installation
     if (now - installedAt < 6e5) {
-      log('[Cache Cleanup] Skipped, too early for cleanup');
+      log('[cache-cleanup] Skipped, too early for cleanup');
       return false;
     }
 
     // Cleanup if last cleanup was more than CACHE_CLEANUP_INTERVAL
     const shouldClean = !last || (now - last > CACHE_CLEANUP_INTERVAL);
-    log('[Cache Cleanup] Should run:', shouldClean);
+    log('[cache-cleanup] Should run:', shouldClean);
     return shouldClean;
   } catch (e) {
-    logError('[Cache Cleanup] Error:', e);
+    logError('[cache-cleanup] Error:', e);
     return false;
   }
 }
 
 async function cleanUpExpiredCache() {
   try {
-    log('[Cache Cleanup] Starting cleanup process.');
+    log('[cache-cleanup] Starting cleanup process.');
     const cache = await caches.open(CACHE_NAME);
     const requests = await cache.keys();
 
     if (requests.length === 0) {
-      log('[Cache Cleanup] No cache to clean.');
+      log('[cache-cleanup] No cache to clean.');
       self._cleanupScheduled = false;
       return;
     }
@@ -178,14 +178,14 @@ async function cleanUpExpiredCache() {
           if (success) deletedCount++;
         }
       } catch (err) {
-        logError('[Cache Cleanup] Error processing request:', request.url, err);
+        logError('[cache-cleanup] Error processing request:', request.url, err);
       }
     });
 
     await Promise.allSettled(deletionTasks);
-    log(`[Cache Cleanup] Finished. Deleted ${deletedCount} expired item(s).`);
+    log(`[cache-cleanup] Finished. Deleted ${deletedCount} expired item(s).`);
   } catch (err) {
-    logError('[Cache Cleanup] Failed to clean cache:', err);
+    logError('[cache-cleanup] Failed to clean cache:', err);
   } finally {
     self._cleanupScheduled = false;
   }
@@ -199,7 +199,7 @@ function matchesPattern(url) {
     const path = urlObj.pathname;
     return cachePatterns.find(({ pattern }) => pattern.test(full) || pattern.test(path));
   } catch (error) {
-    logError('Error matching pattern:', error);
+    logError('[check-pattern] Error matching pattern:', error);
     return false;
   }
 }
@@ -210,20 +210,20 @@ self.addEventListener('install', event => {
     Promise.all([
       caches.open(CACHE_NAME)
         .then(async (cache) => {
-          log('Cache opened');
+          log('[install] Cache opened');
           const cachingTasks = urlsToCache.map(async (url) => {
             try {
               await cache.add(url);
-              log('Cached:', url);
+              log('[install] Cached:', url);
             } catch (error) {
-              logError('Failed to cache:', url, error);
+              logError('[install] Failed to cache:', url, error);
             }
           });
           await Promise.allSettled(cachingTasks);
         }),
       idbKeyval.set('sw-installed-at', Date.now())
     ]).catch(error => {
-      logError('Installation failed:', error);
+      logError('[install] Installation failed:', error);
     })
   );
   self.skipWaiting();
@@ -245,7 +245,7 @@ async function handleFetch(event) {
     try {
       await idbKeyval.set('sw-last-cleanup', Date.now());
     } catch (e) {
-      logError('[IDB] Set error:', e);
+      logError('[cache-cleanup] Set IDB error:', e);
     }
     setTimeout(() => {
       cleanUpExpiredCache();
@@ -256,7 +256,7 @@ async function handleFetch(event) {
 
   if (!strategy) {
     return fetch(event.request).catch(error => {
-      logError('Fetch error:', error);
+      logError('[handle-fetch] Fetch error:', error);
       throw error;
     });
   }
@@ -265,11 +265,11 @@ async function handleFetch(event) {
     return fetch(event.request)
       .then(async (response) => {
         if (response.type === 'opaque') {
-          logError('Opaque response encountered:', event.request.url);
+          logError('[network-first] Opaque response encountered:', event.request.url);
           return response;
         }
 
-        if (event.request.url.startsWith('http')) {
+        if (response.ok && event.request.url.startsWith('http')) {
           const rawBody = await response.clone().arrayBuffer();
           const headers = new Headers(response.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -284,16 +284,16 @@ async function handleFetch(event) {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(event.request, responseToStore);
           } catch (err) {
-            logError('Cache put error:', err);
+            logError('[network-first] Cache put error:', err);
           }
         } else {
-          log('Skipping cache.put for non-http(s) request:', event.request.url);
+          log('[network-first] Skipping cache.put for non-http(s) request:', event.request.url);
         }
 
         return response;
       })
       .catch(async (error) => {
-        logError('Network fetch failed:', error, event.request.url);
+        logError('[network-first] Fetch failed:', error, event.request.url);
         const cachedResponse = await caches.match(event.request);
         if (cachedResponse) return cachedResponse;
         throw error;
@@ -306,17 +306,17 @@ async function handleFetch(event) {
     const fetchPromise = fetch(event.request)
       .then(async (networkResponse) => {
         if (networkResponse.type === 'opaque') {
-          logError('SWR: Opaque response encountered:', event.request.url);
+          logError('[stale-while-revalidate] Opaque response encountered:', event.request.url);
           return networkResponse;
         }
 
         if (!networkResponse.ok) {
-          logError('SWR: Network response not OK:', networkResponse.status);
+          logError('[stale-while-revalidate] Network response not OK:', networkResponse.status);
           if (cachedResponse) return cachedResponse;
-          throw networkResponse;
+          return networkResponse;
         }
 
-        if (event.request.url.startsWith('http')) {
+        if (response.ok && event.request.url.startsWith('http')) {
           const clonedResponse = networkResponse.clone();
           const headers = new Headers(clonedResponse.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -331,16 +331,16 @@ async function handleFetch(event) {
             const cache = await caches.open(CACHE_NAME);
             await cache.put(event.request, responseToStore);
           } catch (err) {
-            logError('SWR: Cache put error:', err);
+            logError('[stale-while-revalidate] Cache put error:', err);
           }
         } else {
-          log('SWR: Skipping cache.put for non-http(s) request:', event.request.url);
+          log('[stale-while-revalidate] Skipping cache.put for non-http(s) request:', event.request.url);
         }
 
         return networkResponse;
       })
       .catch(error => {
-        logError('SWR fetch failed:', error);
+        logError('[stale-while-revalidate] Fetching failed:', error);
         if (cachedResponse) return cachedResponse;
         throw error;
       });
@@ -368,16 +368,16 @@ async function handleFetch(event) {
     });
 
     if (response.type === 'opaque') {
-      logError('Opaque response encountered:', event.request.url);
+      logError('[cache-first] Opaque response encountered:', event.request.url);
       return response;
     }
 
     if (!response.ok) {
       if (cachedResponse) return cachedResponse;
-      throw response;
+      return response;
     }
 
-    if (event.request.url.startsWith('http')) {
+    if (response.ok && event.request.url.startsWith('http')) {
       const newHeaders = new Headers(response.headers);
       newHeaders.set('cached-at', new Date().toISOString());
 
@@ -391,15 +391,15 @@ async function handleFetch(event) {
         const cache = await caches.open(CACHE_NAME);
         await cache.put(event.request, responseToStore);
       } catch (cacheError) {
-        logError('Cache put error:', cacheError);
+        logError('[cache-first] Cache put error:', cacheError);
       }
     } else {
-      log('Skipping cache.put for non-http(s) request:', event.request.url);
+      log('[cache-first] Skipping cache.put for non-http(s) request:', event.request.url);
     }
 
     return response;
   } catch (error) {
-    logError('Fetching failed:', error);
+    logError('[cache-first] Fetching failed:', error);
     if (cachedResponse) return cachedResponse;
     throw error;
   }
@@ -413,7 +413,7 @@ self.addEventListener('activate', event => {
         return Promise.all(
           cacheNames.map(cacheName => {
             if (cacheName !== CACHE_NAME) {
-              log('Deleting old cache:', cacheName);
+              log('[activate] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
           })
@@ -424,7 +424,7 @@ self.addEventListener('activate', event => {
         return clients.claim();
       })
       .catch(error => {
-        logError('Cache cleanup failed:', error);
+        logError('[activate] Cache cleanup failed:', error);
       })
   );
 });
@@ -432,7 +432,7 @@ self.addEventListener('activate', event => {
 // Handle push messages in the background
 self.addEventListener("push", event => {
   if (!event.data) {
-    console.warn("Push event received but no data available.");
+    log("[push] Push event received but no data available.");
     return;
   }
 
@@ -440,7 +440,7 @@ self.addEventListener("push", event => {
   try {
     data = event.data.json();
   } catch (e) {
-    console.error("Error parsing push data:", e);
+    logError("[push] Error parsing push data:", e);
   }
 
   const notif = data.notification || {};
@@ -472,7 +472,7 @@ self.addEventListener('notificationclick', event => {
       if (clients.openWindow) {
         return clients.openWindow(url);
       }
-    }).catch(error => console.error("Error handling notification click:", error))
+    }).catch(error => logError("[notificationclick] Error handling notification click:", error))
   );
 });
 
