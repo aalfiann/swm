@@ -92,7 +92,7 @@ function msToHumanReadable (ms) {
   if (hours > 0) return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
   if (minutes > 0) return `${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
   return 'less than a minute';
-};
+}
 
 // Inlined idb-keyval library
 const idbKeyval = (() => {
