@@ -13,6 +13,7 @@ The purpose of this project is to simplify using Service Worker for any websites
 - [x] Performance optimization
 - [x] Cache version control
 - [x] Pattern-based caching
+- [x] Excluded URLs from cache (support wildcard)
 - [x] Multiple Cache Strategy
 - [x] Automatic and Scheduled cache cleanup
 - [x] Handles silent auto-updates
@@ -43,15 +44,17 @@ Note:
 
 
 ### Configuration
-This project is already included with `sw.js`. I have already create the default configuration, but yes you have to adjust it to your website.
+This project is already included with `sw.js` and `sw.min.js`. I have already create the default configuration, but yes you have to adjust it to your website.
 
 Note:  
-If you don't want to use our `sw.js`, yes you can use your own sw.js.
+- If you don't set swPath, then it will use `sw.js` as default.
+- If you don't want to use our `sw.js`, yes you can use your own sw.js.
+
 
 Here is the example using SWM with your own Service Worker
 ```js
   ServiceWorkerManager.register({
-    swPath: '/your-sw.js',
+    swPath: '/your-sw.js', // or '/sw.min.js' for using minified
     scope: '/'
   });
 ```

@@ -49,6 +49,16 @@ const cachePatterns = [
     pattern: /^https:\/\/static\.cloudflareinsights\.com\//,
     strategy: 'network-only'
   },
+  {
+    // WordPress admin and login pages - use network-only to avoid caching sensitive data
+    pattern: /^\/(wp-login\.php|wp-admin)/,
+    strategy: 'network-only'
+  },
+  {
+    // Auth pages - use network-only to avoid caching sensitive data
+    pattern: /^\/(login|logout|register|sso)(\/?$|\/.+|\?.*$)/,
+    strategy: 'network-only'
+  },
 
   // Add more patterns as needed here
   // ...
@@ -63,6 +73,28 @@ const cachePatterns = [
     pattern: /^\/.*$/, // Matches all other requests
     strategy: (ENVIRONMENT === 'production' ? 'stale-while-revalidate' : 'network-first')
   }
+];
+
+// Excluded URLs from cache
+const excludedFromCache = [
+  '/login*',
+  '/logout*',
+  '/register*',
+  '/wp-login*',
+  '/wp-admin*',
+  '*wp-json*',
+  '*xmlrpc.php*',
+  '/oauth*',
+  '*authorize*',
+  '*token*',
+  '*callback*',
+  '*code=*',
+  '*state=*',
+  '*oauth_token=*',
+  '/auth*',
+  '*redirect_uri=*',
+  '*csrf*',
+  '*token=*'
 ];
 
 //-----------------------
@@ -202,8 +234,35 @@ async function cleanUpExpiredCache() {
   }
 }
 
+function pathMatchesPattern(path, patterns) {
+  return patterns.some(pattern => {
+    // Escape regex chars, convert * become .*
+    const regex = new RegExp('^' + pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*') + '$');
+    return regex.test(path);
+  });
+}
+
+function shouldExcludeFromCache(url) {
+  try {
+    const urlObj = new URL(url);
+    const path = urlObj.pathname;
+    const full = urlObj.pathname + urlObj.search;
+
+    return pathMatchesPattern(path, excludedFromCache) ||
+           pathMatchesPattern(full, excludedFromCache);
+  } catch (e) {
+    logError('[shouldExcludeFromCache] Error parsing URL:', url);
+    return false;
+  }
+}
+
 // Helper function to check if URL matches any pattern
 function matchesPattern(url) {
+  if (shouldExcludeFromCache(url)) {
+    log('[matchesPattern] Excluded from cache:', url);
+    return null;
+  }
+
   try {
     const urlObj = new URL(url);
     const full = urlObj.toString();
@@ -303,6 +362,16 @@ async function handleFetch(event) {
         }
 
         if (response.ok && event.request.url.startsWith('http')) {
+          if (response.redirected) {
+            log('[network-first] Skipping cache for redirected response:', event.request.url);
+            return response;
+          }
+
+          if (response.headers.get('Cache-Control')?.includes('no-store')) {
+            log('[network-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
+            return response;
+          }
+
           const rawBody = await response.clone().arrayBuffer();
           const headers = new Headers(response.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -350,6 +419,16 @@ async function handleFetch(event) {
         }
 
         if (networkResponse.ok && event.request.url.startsWith('http')) {
+          if (networkResponse.redirected) {
+            log('[stale-while-revalidate] Skipping cache for redirected response:', event.request.url);
+            return networkResponse;
+          }
+
+          if (networkResponse.headers.get('Cache-Control')?.includes('no-store')) {
+            log('[stale-while-revalidate] Skipping cache due to Cache-Control: no-store:', event.request.url);
+            return networkResponse;
+          }
+
           const clonedResponse = networkResponse.clone();
           const headers = new Headers(clonedResponse.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -411,6 +490,16 @@ async function handleFetch(event) {
     }
 
     if (response.ok && event.request.url.startsWith('http')) {
+      if (response.redirected) {
+        log('[cache-first] Skipping cache for redirected response:', event.request.url);
+        return response;
+      }
+
+      if (response.headers.get('Cache-Control')?.includes('no-store')) {
+        log('[cache-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
+        return response;
+      }
+
       const newHeaders = new Headers(response.headers);
       newHeaders.set('cached-at', new Date().toISOString());
 
