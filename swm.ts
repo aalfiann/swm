@@ -1,5 +1,5 @@
 /**
- * Service Worker Manager TS - v1.12.0
+ * Service Worker Manager TS - v1.12.1
  * https://github.com/aalfiann/swm
  */
 import { FirebaseApp, initializeApp, FirebaseOptions } from "firebase/app";
@@ -234,7 +234,7 @@ export class APIFallbacks {
 }
 
 export class ServiceWorkerManager {
-  static VERSION: string = '1.12.0';
+  static VERSION: string = '1.12.1';
   static initialized: boolean = false;
   static _lastOptions: ServiceWorkerManagerOptions | null = null;
 

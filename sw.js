@@ -64,13 +64,17 @@ const cachePatterns = [
   // ...
 
   // Don't remove this below, it will be used as a fallback
-  // Fallback if no another pattern matches, use strategy based on environment
+  // -----------------
+  // Default Homepage, if your website is news or blog, you can use network-first
+  // to always get the latest content, but if your website is a web app or static,
+  // its better to use stale-while-revalidate to get the latest content but still use the cached
   {
     pattern: /^\/$/, // Default Homepage
-    strategy: (ENVIRONMENT === 'production' ? 'stale-while-revalidate' : 'network-first')
+    strategy: 'network-first' // use 'network-first' or 'stale-while-revalidate'
   },
+  // Default Fallback if no another pattern matches, use strategy based on environment
   {
-    pattern: /^\/.*$/, // Matches all other requests
+    pattern: /^\/.+/, // Matches all other requests
     strategy: (ENVIRONMENT === 'production' ? 'stale-while-revalidate' : 'network-first')
   }
 ];
