@@ -81,6 +81,8 @@ const cachePatterns = [
 
 // Excluded URLs from cache
 const excludedFromCache = [
+  '/sw.js*',
+  '/sw.*.js*',
   '/login*',
   '/logout*',
   '/register*',
