@@ -27,18 +27,18 @@ if (existsSync(OUTPUT_DIR)) {
 await fs.mkdir(OUTPUT_PWA, { recursive: true })
 
 // Ask input
-const { input, appName, generateFavicon } = await inquirer.prompt([
-  {
-    type: 'input',
-    name: 'input',
-    message: 'Enter path to source icon (e.g., src/icon-512x512.png):',
-    default: 'src/icon-512x512.png'
-  },
+const { appName, input, generateFavicon } = await inquirer.prompt([
   {
     type: 'input',
     name: 'appName',
     message: 'What is your app name (for iOS title)?',
     default: 'My PWA'
+  },
+  {
+    type: 'input',
+    name: 'input',
+    message: 'Enter path to source icon (e.g., src/icon-512x512.png):',
+    default: 'src/icon-512x512.png'
   },
   {
     type: 'confirm',
