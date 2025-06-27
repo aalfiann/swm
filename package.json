@@ -1,0 +1,37 @@
+{
+  "name": "swm",
+  "version": "1.13.0",
+  "description": "Service Worker Manager",
+  "main": "server.mjs",
+  "directories": {
+    "test": "test"
+  },
+  "devDependencies": {
+    "execa": "^9.6.0",
+    "http-server": "^14.1.1",
+    "inquirer": "^12.6.3",
+    "pwa-asset-generator": "^8.0.5"
+  },
+  "scripts": {
+    "dev": "node server.mjs",
+    "generator": "node ./generate-icon.mjs",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aalfiann/swm.git"
+  },
+  "keywords": [
+    "swm",
+    "service-worker",
+    "service-worker-manager",
+    "pwa",
+    "pwa-generator"
+  ],
+  "author": "M Abd Aziz Alfian",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/aalfiann/swm/issues"
+  },
+  "homepage": "https://github.com/aalfiann/swm#readme"
+}

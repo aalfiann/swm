@@ -35,6 +35,7 @@ The purpose of this project is to simplify using Service Worker for any websites
 - [x] Display Override
 - [x] Best practice manifest.json
 - [x] Custom SplashScreen with ProgressBar for All Devices
+- [x] PWA Assets Generator 
 
 Note:  
 - To keep size always minimal, only common device APIs were implemented.
@@ -96,8 +97,31 @@ const cachePatterns = [
 ];
 ```
 
+### Simple Usage with Generator
+1. Clone this project
+```bash
+git clone https://github.com/aalfiann/swm.git mypwaproject && rm -rf mypwaproject/.git
+```
+2. Go to mypwaproject directory
+3. Install Dependencies
+```bash
+npm install
+```
+4. Replace icon at `src/icon-512x512.png` with yours
+5. Modify `src/manifest.json`. (don't add "icons", coz its generated automatically)
+6. Modify `sw.js`, look at CONFIGURATION area.
+7. Generate it
+```bash
+npm run generator
+```
+8. Result is at `output` directory.
 
-### Usage
+Note: 
+- Just copy the `pwa-assets`, `sw.js` and `swm.js` to the public directory.
+- Copy parts of head meta/link and script tag in `index.html` to your index page website.
+
+
+### Manual Usage
 1. Just put `sw.js`, `swm.js` and `manifest.json` in root or public directories.
 
 2. Create `<script>` tags on layout or home page of your website.
@@ -134,16 +158,16 @@ Please see [Digital Asset Links](https://developers.google.com/digital-asset-lin
 
 6. Done.
 
-### Testing
+### Testing Service Worker
 1. Preparation  
-If you're using Linux environment, you can use `NodeJS` and `http-server`.
+If you're using Linux environment, you can use `NodeJS`.
 ```bash
-npm install -g http-server
+npm install
 ```
 
 2. Just go to this project then run this command
 ```bash
-http-server
+npm run dev
 ```
 
 3. Default will use port 8080.  
