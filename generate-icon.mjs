@@ -7,6 +7,7 @@ import { existsSync, rmSync, copyFileSync } from 'fs'
 
 const OUTPUT_DIR = 'output'
 const OUTPUT_PWA = path.join(OUTPUT_DIR, 'pwa-assets')
+const OUTPUT_PACKAGES = path.join(OUTPUT_DIR, 'packages')
 const SRC_DIR = 'src'
 
 const MANIFEST_SRC = path.join(SRC_DIR, 'manifest.json')
@@ -31,6 +32,7 @@ if (existsSync(SRC_DIR+'/index.html')) {
 
 // Ensure directories
 await fs.mkdir(OUTPUT_PWA, { recursive: true })
+await fs.mkdir(OUTPUT_PACKAGES, { recursive: true })
 
 // Ask input
 const { appName, input, generateFavicon } = await inquirer.prompt([

@@ -363,7 +363,7 @@ async function handleFetch(event) {
     return fetch(event.request)
       .then(async (response) => {
         if (response.type === 'opaque') {
-          logError('[network-first] Opaque response encountered:', event.request.url);
+          log('[network-first] Opaque response encountered:', event.request.url);
           return response;
         }
 
@@ -414,12 +414,12 @@ async function handleFetch(event) {
     const fetchPromise = fetch(event.request)
       .then(async (networkResponse) => {
         if (networkResponse.type === 'opaque') {
-          logError('[stale-while-revalidate] Opaque response encountered:', event.request.url);
+          log('[stale-while-revalidate] Opaque response encountered:', event.request.url);
           return networkResponse;
         }
 
         if (!networkResponse.ok) {
-          logError('[stale-while-revalidate] Network response not OK:', networkResponse.status);
+          log('[stale-while-revalidate] Network response not OK:', networkResponse.status);
           if (cachedResponse) return cachedResponse;
           return networkResponse;
         }
@@ -486,7 +486,7 @@ async function handleFetch(event) {
     });
 
     if (response.type === 'opaque') {
-      logError('[cache-first] Opaque response encountered:', event.request.url);
+      log('[cache-first] Opaque response encountered:', event.request.url);
       return response;
     }
 
