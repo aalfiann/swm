@@ -136,4 +136,10 @@ await fs.writeFile(MANIFEST_OUT, JSON.stringify(manifestData, null, 2), 'utf-8')
 if (existsSync(SW_SRC)) copyFileSync(SW_SRC, path.join(OUTPUT_DIR, 'sw.js'))
 if (existsSync(SWM_SRC)) copyFileSync(SWM_SRC, path.join(OUTPUT_DIR, 'swm.js'))
 
+// Clean index.html
+if (existsSync(INDEX_SRC)) {
+  console.log(`🧹 Removing existing ${INDEX_SRC}...`)
+  rmSync(INDEX_SRC, { recursive: true, force: true })
+}
+
 console.log('\n✅ Done!\n')
