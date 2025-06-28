@@ -105,7 +105,7 @@ git clone https://github.com/aalfiann/swm.git mypwaproject && rm -rf mypwaprojec
 2. Go to mypwaproject directory
 3. Install Dependencies
 ```bash
-npm install
+npm ci
 ```
 4. Replace icon at `src/icon-512x512.png` with yours
 5. Modify `src/manifest.json`. (don't add "icons", coz its generated automatically)
@@ -162,7 +162,7 @@ Please see [Digital Asset Links](https://developers.google.com/digital-asset-lin
 1. Preparation  
 If you're using Linux environment, you can use `NodeJS`.
 ```bash
-npm install
+npm ci
 ```
 
 2. Just go to this project then run this command
