@@ -1,6 +1,6 @@
 {
   "name": "swm",
-  "version": "1.14.1",
+  "version": "1.14.2",
   "description": "Service Worker Manager",
   "main": "server.mjs",
   "directories": {

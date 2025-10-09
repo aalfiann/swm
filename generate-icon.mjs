@@ -69,7 +69,7 @@ if (!existsSync(INDEX_SRC)) {
   await fs.writeFile(INDEX_SRC, `<!DOCTYPE html>
   <html>
     <head>
-      <link rel="manifest" href="pwa-assets/manifest.json">
+      <link rel="manifest" href="/pwa-assets/manifest.json">
       <meta name="apple-mobile-web-app-title" content="${appName}">
       <meta name="apple-mobile-web-app-status-bar-style">
     </head>
