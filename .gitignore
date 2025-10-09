@@ -1,6 +1,8 @@
-output/**
-!output/packages/
+output/*
+!output/packages
+output/packages/**
 !output/packages/*.zip
+output/*.zip
 node_modules
 .DS_Store
 src/index.html
