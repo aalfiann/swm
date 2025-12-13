@@ -311,6 +311,83 @@ self.addEventListener('fetch', event => {
   event.respondWith(handleFetch(event));
 });
 
+async function revalidateWithETag(request, cachedResponse) {
+  try {
+    // Skip if not HTTP request
+    if (!request.url.startsWith('http')) {
+      return;
+    }
+
+    // Skip if cached response doesn't have ETag
+    const cachedETag = cachedResponse.headers.get('ETag');
+    if (!cachedETag) {
+      log('[revalidateWithETag] No ETag in cache, skipping revalidation:', request.url);
+      return;
+    }
+
+    // Fetch fresh response
+    const freshResponse = await fetch(request, {
+      credentials: 'same-origin',
+      mode: 'cors'
+    });
+
+    // Skip if response not OK
+    if (!freshResponse.ok) {
+      log('[revalidateWithETag] Fresh response not OK:', freshResponse.status, request.url);
+      return;
+    }
+
+    // Skip if redirected
+    if (freshResponse.redirected) {
+      log('[revalidateWithETag] Response redirected:', request.url);
+      return;
+    }
+
+    // Skip if there is Cache-Control: no-store
+    const cacheControl = freshResponse.headers.get('Cache-Control');
+    if (cacheControl && cacheControl.includes('no-store')) {
+      log('[revalidateWithETag] Cache-Control: no-store, skipping:', request.url);
+      return;
+    }
+
+    // Skip if fresh response doesn't have ETag
+    const freshETag = freshResponse.headers.get('ETag');
+    if (!freshETag) {
+      log('[revalidateWithETag] No ETag in fresh response:', request.url);
+      return;
+    }
+
+    // Compare ETag
+    if (cachedETag === freshETag) {
+      log('[revalidateWithETag] ETag match, cache still valid:', request.url);
+      return;
+    }
+
+    // ETag is different, update cache
+    log('[revalidateWithETag] ETag changed, updating cache:', request.url);
+
+    // Create new response with cached-at header
+    const newHeaders = new Headers(freshResponse.headers);
+    newHeaders.set('cached-at', new Date().toISOString());
+
+    const responseToStore = new Response(freshResponse.clone().body, {
+      status: freshResponse.status,
+      statusText: freshResponse.statusText,
+      headers: newHeaders
+    });
+
+    // Update cache
+    const cache = await caches.open(CACHE_NAME);
+    await cache.put(request, responseToStore);
+
+    log('[revalidateWithETag] Cache updated successfully:', request.url);
+
+  } catch (error) {
+    // Log error but don't throw (this is a background task)
+    logError('[revalidateWithETag] Error:', error, request.url);
+  }
+}
+
 async function handleFetch(event) {
   const url = event.request.url;
   const matchedPattern = matchesPattern(url);
@@ -328,7 +405,7 @@ async function handleFetch(event) {
     }, 3e4);
   }
 
-  const strategy = matchedPattern?.strategy || (urlsToCache.includes(new URL(url).pathname) ? 'cache-first' : null);
+  const strategy = (matchedPattern && matchedPattern.strategy) || (urlsToCache.includes(new URL(url).pathname) ? 'cache-first' : null);
 
   if (!strategy) {
     return fetch(event.request).catch(error => {
@@ -373,7 +450,7 @@ async function handleFetch(event) {
             return response;
           }
 
-          if (response.headers.get('Cache-Control')?.includes('no-store')) {
+          if (response.headers.get('Cache-Control') && response.headers.get('Cache-Control').includes('no-store')) {
             log('[network-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
             return response;
           }
@@ -430,7 +507,7 @@ async function handleFetch(event) {
             return networkResponse;
           }
 
-          if (networkResponse.headers.get('Cache-Control')?.includes('no-store')) {
+          if (networkResponse.headers.get('Cache-Control') && networkResponse.headers.get('Cache-Control').includes('no-store')) {
             log('[stale-while-revalidate] Skipping cache due to Cache-Control: no-store:', event.request.url);
             return networkResponse;
           }
@@ -474,6 +551,12 @@ async function handleFetch(event) {
       const age = Date.now() - new Date(cachedAt).getTime();
       const expiration = ENVIRONMENT === 'production' ? CACHE_EXPIRATION : 60 * 1000;
       if (age < expiration) {
+        event.waitUntil(
+          revalidateWithETag(event.request, cachedResponse)
+            .catch(error => {
+              logError('[cache-first] Background revalidation failed:', error);
+            })
+        );
         return cachedResponse;
       }
     }
@@ -501,7 +584,7 @@ async function handleFetch(event) {
         return response;
       }
 
-      if (response.headers.get('Cache-Control')?.includes('no-store')) {
+      if (response.headers.get('Cache-Control') && response.headers.get('Cache-Control').includes('no-store')) {
         log('[cache-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
         return response;
       }

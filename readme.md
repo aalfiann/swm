@@ -65,11 +65,11 @@ Our sw.js has already support to use multiple strategy and you can setup it by r
 
 | Strategy | Fast Respons? | Fresh Data? | Best for |
 |----------|---------------|-------------|-------------|
-| cache-first | ✅ | ❌ | Static assets (CSS, JS, images) |
-| network-first | ❌ | ✅ | HTML, dynamic content |
-| stale-while-revalidate | ✅ | ✅ (slow) | Blog, article, PWA |
-| network-only | ❌ | ✅ | Beacon, tracking, login |
-| cache-only | ✅ | ❌ | Offline app, game |
+| cache-first | ✅ | 🟡 (slow but respect etag) | Static assets (css, js, images) |
+| network-first | ❌ | 🟢 (always fresh) | HTML, dynamic content |
+| stale-while-revalidate | ✅ | 🟢 (2nd request) | Blog, article, PWA |
+| network-only | ❌ | 🟢 (always fresh) | Beacon, tracking, login |
+| cache-only | ✅ | 🔴 (maybe stale) | Offline app, game |
 
 Example cache pattern-based  
 ```js
