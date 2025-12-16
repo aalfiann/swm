@@ -3,13 +3,24 @@
 //-----------------------
 // This version is used to invalidate the cache when the service worker is updated
 const VERSION = '1.0.0'; // Update this version directly when making changes on website
-// Cache name format: site-name-v1.0.0
-const CACHE_NAME = `site-name-v${VERSION}`; // Change 'site-name' to your actual site name
+const CACHE_PREFIX = 'site-name'; // Change 'site-name' to your actual site name
+const CACHE_NAME = `${CACHE_PREFIX}-v${VERSION}`;
+const OPAQUE_CACHE_NAME = `${CACHE_PREFIX}-opaque-v${VERSION}`;
+const OPAQUE_QUEUE_KEY = `opaque-queue-${VERSION}`;
+const MAX_OPAQUE_ENTRIES = 50;
 // Cache expiration will keep the cache until the specified time
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 // Cache cleanup will clean up all caches older than CACHE_EXPIRATION
 const CACHE_CLEANUP_ENABLED = true;  // If your site is small (below 10 pages), better set this to false.
 const CACHE_CLEANUP_INTERVAL = 8 * 60 * 60 * 1000 // 8 hours
+// Allow-list for cross-origin CDN hosts whose opaque responses are safe to cache
+// Hostname only (no protocol, no path)
+const ALLOW_CDN_HOSTS = [
+  'fonts.gstatic.com',
+  'fonts.googleapis.com',
+  // 'cdn.yourdomain.com',
+  // 'static.yourdomain.com'
+];
 // Environment variable to control cache expiration
 // Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION.
 const ENVIRONMENT = 'production'; // Change to 'development' or 'production'.
@@ -25,12 +36,12 @@ const urlsToCache = [
 const cachePatterns = [
   {
     // PWA assets
-    pattern: /^\/(pwa|pwa-assets)\/.+\.(png|jpe?g|webp)$/,
+    pattern: /^\/pwa\/.+\.(png|jpg|jpeg|webp)$/,
     strategy: 'cache-first'
   },
   {
     // Astro SSG assets if any (you can delete this if not using Astro)
-    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpe?g|gif|svg|woff|woff2|eot|ttf|otf)$/,
+    pattern: /^\/_astro\/.+\.(css|js|png|webp|jpg|jpeg|gif|svg|woff|woff2|eot|ttf|otf)$/,
     strategy: 'cache-first'
   },
   {
@@ -42,11 +53,6 @@ const cachePatterns = [
     // Google Fonts Files (actual font files)
     pattern: /^https:\/\/fonts\.gstatic\.com\//,
     strategy: 'cache-first'
-  },
-  {
-    // Cloudflare Insights
-    pattern: /^https:\/\/static\.cloudflareinsights\.com\//,
-    strategy: 'network-only'
   },
   {
     // WordPress admin and login pages - use network-only to avoid caching sensitive data
@@ -69,17 +75,18 @@ const cachePatterns = [
   // its better to use stale-while-revalidate to get the latest content but still use the cached
   {
     pattern: /^\/$/, // Default Homepage
-    strategy: 'network-first' // use 'network-first' for dynamic web or 'stale-while-revalidate' for static web
+    strategy: 'network-first' // use 'network-first' or 'stale-while-revalidate'
   },
   // Default Fallback if no another pattern matches, use strategy based on environment
   {
     pattern: /^\/.+/, // Matches all other requests
-    strategy: 'network-first' // use 'network-first' for dynamic web or 'stale-while-revalidate' for static web
+    strategy: 'network-first'
   }
 ];
 
 // Excluded URLs from cache
 const excludedFromCache = [
+  '/api/*',
   '/sw.js*',
   '/sw.*.js*',
   '/login*',
@@ -99,7 +106,8 @@ const excludedFromCache = [
   '/auth*',
   '*redirect_uri=*',
   '*csrf*',
-  '*token=*'
+  '*token=*',
+  '*static.cloudflareinsights.com*'
 ];
 
 //-----------------------
@@ -111,10 +119,9 @@ function log(...args) {
   }
 }
 
+let _errCount = 0;
 function logError(...args) {
-  if (DEBUG) {
-    console.error('[ServiceWorker Error]', ...args);
-  }
+  if (_errCount++ < 50) console.error('[ServiceWorker Error]', ...args);
 }
 
 function formatLocalTime(date) {
@@ -174,9 +181,247 @@ const idbKeyval = (() => {
 
         tx.objectStore(storeName).put(value, key);
       });
+    },
+    async keys() {
+      const db = await getStore();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readonly');
+        const req = tx.objectStore(storeName).getAllKeys();
+        req.onerror = () => reject(req.error);
+        req.onsuccess = () => resolve(req.result || []);
+      });
+    },
+    async del(key) {
+      const db = await getStore();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const req = tx.objectStore(storeName).delete(key);
+        req.onerror = () => reject(req.error);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+      });
     }
   };
 })();
+
+async function getOpaqueQueue() {
+  var q = await idbKeyval.get(OPAQUE_QUEUE_KEY);
+  return Array.isArray(q) ? q : [];
+}
+
+async function setOpaqueQueue(q) {
+  await idbKeyval.set(OPAQUE_QUEUE_KEY, q);
+}
+
+async function recordOpaqueUrl(url) {
+  var q = await getOpaqueQueue();
+
+  // dedupe
+  for (var i = q.length - 1; i >= 0; i--) {
+    if (q[i] === url) q.splice(i, 1);
+  }
+  q.push(url);
+
+  await setOpaqueQueue(q);
+}
+
+async function compactOpaqueQueue() {
+  try {
+    var q = await getOpaqueQueue();
+    if (!q.length) return;
+
+    var cache = await caches.open(OPAQUE_CACHE_NAME);
+    var kept = [];
+
+    for (var i = 0; i < q.length; i++) {
+      var res = await cache.match(q[i]);
+      if (res) kept.push(q[i]);
+    }
+
+    await setOpaqueQueue(kept);
+  } catch(e) {
+    // ignore error
+  }
+}
+
+async function enforceOpaqueLimit(maxEntries) {
+  try {
+    var q = await getOpaqueQueue();
+    if (q.length <= maxEntries) return;
+
+    var cache = await caches.open(OPAQUE_CACHE_NAME);
+
+    while (q.length > maxEntries) {
+      var oldest = q.shift();
+      try {
+        await cache.delete(oldest);
+      } catch (e) {
+        // ignore error
+      }
+    }
+
+    await setOpaqueQueue(q);
+  } catch(e) {
+    // ignore error
+  }
+}
+
+function deleteOldOpaqueQueues() {
+  return idbKeyval.keys()
+    .then(keys => {
+      const oldKeys = keys.filter(k =>
+        typeof k === 'string' &&
+        k.startsWith('opaque-queue-') &&
+        k !== OPAQUE_QUEUE_KEY
+      );
+
+      if (!oldKeys.length) {
+        log('[activate] No old opaque queue keys to delete.');
+        return;
+      }
+
+      log('[activate] Deleting old opaque queue keys:', oldKeys);
+      return Promise.all(oldKeys.map(k => idbKeyval.del(k)));
+    })
+    .catch(err => {
+      logError('[activate] Opaque queue IDB cleanup failed:', err);
+    });
+}
+
+// Cross-origin detector + CORS-first fetch with fallback
+function isCrossOrigin(url) {
+  try {
+    return new URL(url).origin !== self.location.origin;
+  } catch {
+    return false;
+  }
+}
+
+async function matchFromCaches(request) {
+  const cache = await caches.open(CACHE_NAME);
+
+  // exact request
+  let res = await cache.match(request);
+  if (res) return res;
+
+  // cross-origin: try the CORS-key variant (because you sometimes store with corsReq)
+  if (isCrossOrigin(request.url)) {
+    const corsKey = new Request(request.url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      redirect: 'follow',
+      cache: request.cache || 'default'
+    });
+    res = await cache.match(corsKey);
+    if (res) return res;
+  }
+
+  // last resort in main cache: match by URL
+  res = await cache.match(request.url);
+  if (res) return res;
+
+  // THEN check opaque cache
+  const opaqueCache = await caches.open(OPAQUE_CACHE_NAME);
+
+  // try exact request.url
+  res = await opaqueCache.match(request.url);
+  if (res) return res;
+
+  // final global fallback
+  return caches.match(request.url);
+}
+
+
+// Decide whether an opaque response is safe to cache
+function shouldCacheOpaque(url) {
+  try {
+    const u = new URL(url);
+
+    // Allow only specific CDN hosts
+    const isAllowedHost = ALLOW_CDN_HOSTS.includes(u.hostname);
+
+    // Allow common static asset extensions only
+    const isStaticAsset =
+      /\.(woff2?|ttf|otf|png|jpg|jpeg|webp|gif|svg|css|js)$/i.test(u.pathname);
+
+    return isAllowedHost && isStaticAsset;
+  } catch {
+    return false;
+  }
+}
+
+// Try CORS (no credentials) then fallback to original request
+async function fetchWithCorsFallback(request) {
+  // Only attempt the CORS trick for cross-origin requests
+  if (!isCrossOrigin(request.url)) {
+    return fetch(request);
+  }
+
+  // Try CORS first (many CDNs/fonts support this and then response is not opaque)
+  try {
+    // Use GET-only safety here (since your fetch handler only intercepts GET anyway).
+    // Also, do not forward request.headers for cross-origin: it can introduce forbidden headers or
+    // accidentally trigger preflight / be blocked in some browsers/CDNs.
+    const corsReq = new Request(request.url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      redirect: 'follow',
+      cache: request.cache || 'default'
+    });
+    return await fetch(corsReq);
+  } catch (e) {
+    // Fallback to original (may become opaque but should still load)
+    return fetch(request);
+  }
+}
+
+// Like fetchWithCorsFallback, but also returns the actual Request used for fetching
+async function fetchWithCorsFallbackKeyed(originalRequest) {
+  if (!isCrossOrigin(originalRequest.url)) {
+    const res = await fetch(originalRequest);
+    return { request: originalRequest, response: res };
+  }
+
+  try {
+    const corsReq = new Request(originalRequest.url, {
+      method: 'GET',
+      mode: 'cors',
+      credentials: 'omit',
+      redirect: 'follow',
+      cache: originalRequest.cache || 'default'
+    });
+    const res = await fetch(corsReq);
+    return { request: corsReq, response: res };
+  } catch (e) {
+    const res = await fetch(originalRequest);
+    return { request: originalRequest, response: res };
+  }
+}
+
+
+// Cache opaque response "as-is" so CDN assets become more stable
+async function cacheOpaqueIfPossible(cacheKeyRequest, response) {
+  try {
+    if (cacheKeyRequest.destination === 'document') return;
+
+    if (response && response.type === 'opaque' && shouldCacheOpaque(cacheKeyRequest.url)) {
+      const cache = await caches.open(OPAQUE_CACHE_NAME);
+      const key = cacheKeyRequest.url;
+      await cache.put(key, response.clone());
+
+      await recordOpaqueUrl(key);
+      await enforceOpaqueLimit(MAX_OPAQUE_ENTRIES);
+
+      log('[opaque-cache] Cached opaque:', key);
+    }
+  } catch (e) {
+    logError('[opaque-cache] Failed caching opaque:', cacheKeyRequest && cacheKeyRequest.url, e);
+  }
+}
+
 
 async function shouldRunCleanup() {
   if(CACHE_CLEANUP_ENABLED === false) {
@@ -220,7 +465,7 @@ async function cleanUpExpiredCache() {
         if (!response) return;
 
         const cachedAt = response.headers.get('cached-at');
-        if (!cachedAt) return;
+        if (!cachedAt) return; // opaque won't have cached-at, intentionally skipped
 
         const cachedTime = new Date(cachedAt).getTime();
         if (now - cachedTime > CACHE_EXPIRATION) {
@@ -233,6 +478,9 @@ async function cleanUpExpiredCache() {
     });
 
     await Promise.allSettled(deletionTasks);
+    await compactOpaqueQueue();
+    await enforceOpaqueLimit(MAX_OPAQUE_ENTRIES);
+    self._cleanupScheduled = false;
     log(`[cache-cleanup] Finished. Deleted ${deletedCount} expired item(s).`);
   } catch (err) {
     logError('[cache-cleanup] Failed to clean cache:', err);
@@ -254,9 +502,11 @@ function shouldExcludeFromCache(url) {
     const urlObj = new URL(url);
     const path = urlObj.pathname;
     const full = urlObj.pathname + urlObj.search;
+    const href = urlObj.href;
 
     return pathMatchesPattern(path, excludedFromCache) ||
-           pathMatchesPattern(full, excludedFromCache);
+           pathMatchesPattern(full, excludedFromCache) ||
+           pathMatchesPattern(href, excludedFromCache);
   } catch (e) {
     logError('[shouldExcludeFromCache] Error parsing URL:', url);
     return false;
@@ -274,10 +524,10 @@ function matchesPattern(url) {
     const urlObj = new URL(url);
     const full = urlObj.toString();
     const path = urlObj.pathname;
-    return cachePatterns.find(({ pattern }) => pattern.test(full) || pattern.test(path));
+    return cachePatterns.find(({ pattern }) => pattern.test(full) || pattern.test(path)) || null;
   } catch (error) {
     logError('[check-pattern] Error matching pattern:', error);
-    return false;
+    return null;
   }
 }
 
@@ -290,7 +540,31 @@ self.addEventListener('install', event => {
           log('[install] Cache opened');
           const cachingTasks = urlsToCache.map(async (url) => {
             try {
-              await cache.add(url);
+              const req = new Request(url, {
+                cache: 'reload',
+                credentials: 'same-origin'
+              });
+
+              const res = await fetch(req);
+              if (!res || !res.ok) return;
+
+              const cacheControl = res.headers.get('Cache-Control');
+              if (cacheControl && cacheControl.includes('no-store')) return;
+
+              if (res.redirected) return;
+
+              const headers = new Headers(res.headers);
+              headers.set('cached-at', new Date().toISOString());
+
+              const body = await res.clone().arrayBuffer();
+
+              const stored = new Response(body, {
+                status: res.status,
+                statusText: res.statusText,
+                headers
+              });
+
+              await cache.put(req, stored);
               log('[install] Cached:', url);
             } catch (error) {
               logError('[install] Failed to cache:', url, error);
@@ -315,7 +589,11 @@ self.addEventListener('fetch', event => {
 async function revalidateWithETag(request, cachedResponse) {
   try {
     // Skip if not HTTP request
-    if (!request.url.startsWith('http')) {
+    if (!request.url.startsWith('http')) return;
+
+    // Skip cross origin
+    if (isCrossOrigin(request.url)) {
+      log('[revalidateWithETag] cross-origin skip:', request.url);
       return;
     }
 
@@ -326,11 +604,34 @@ async function revalidateWithETag(request, cachedResponse) {
       return;
     }
 
-    // Fetch fresh response
-    const freshResponse = await fetch(request, {
-      credentials: 'same-origin',
-      mode: 'cors'
+    // Save bandwidth: conditional request
+    const headers = new Headers(request.headers);
+    headers.set('If-None-Match', cachedETag);
+
+    // Fetch fresh response, CORS-first with fallback
+    const conditionalReq = new Request(request.url, {
+      method: 'GET',
+      headers,
+      mode: request.mode,
+      credentials: request.credentials,
+      redirect: 'follow',
+      cache: 'no-store' // will validate to origin, not disk cache browser
     });
+
+    const { request: keyReq, response: freshResponse } =
+      await fetchWithCorsFallbackKeyed(conditionalReq);
+
+    // If opaque, we can't validate with ETag; optionally cache it and stop
+    if (freshResponse && freshResponse.type === 'opaque') {
+      await cacheOpaqueIfPossible(keyReq, freshResponse);
+      return;
+    }
+
+    // 304 = Not Modified => save bandwidth (not download body)
+    if (freshResponse.status === 304) {
+      log('[revalidateWithETag] 304 Not Modified:', request.url);
+      return;
+    }
 
     // Skip if response not OK
     if (!freshResponse.ok) {
@@ -351,38 +652,22 @@ async function revalidateWithETag(request, cachedResponse) {
       return;
     }
 
-    // Skip if fresh response doesn't have ETag
-    const freshETag = freshResponse.headers.get('ETag');
-    if (!freshETag) {
-      log('[revalidateWithETag] No ETag in fresh response:', request.url);
-      return;
-    }
+    // Update cache (only when changed)
+    const buf = await freshResponse.clone().arrayBuffer();
 
-    // Compare ETag
-    if (cachedETag === freshETag) {
-      log('[revalidateWithETag] ETag match, cache still valid:', request.url);
-      return;
-    }
-
-    // ETag is different, update cache
-    log('[revalidateWithETag] ETag changed, updating cache:', request.url);
-
-    // Create new response with cached-at header
     const newHeaders = new Headers(freshResponse.headers);
     newHeaders.set('cached-at', new Date().toISOString());
 
-    const responseToStore = new Response(freshResponse.clone().body, {
+    const responseToStore = new Response(buf, {
       status: freshResponse.status,
       statusText: freshResponse.statusText,
       headers: newHeaders
     });
 
-    // Update cache
     const cache = await caches.open(CACHE_NAME);
-    await cache.put(request, responseToStore);
+    await cache.put(keyReq, responseToStore);
 
     log('[revalidateWithETag] Cache updated successfully:', request.url);
-
   } catch (error) {
     // Log error but don't throw (this is a background task)
     logError('[revalidateWithETag] Error:', error, request.url);
@@ -394,19 +679,38 @@ async function handleFetch(event) {
   const matchedPattern = matchesPattern(url);
 
   // Trigger auto cleanup asynchronously
-  if (!self._cleanupScheduled && await shouldRunCleanup()) {
-    self._cleanupScheduled = true;
-    try {
-      await idbKeyval.set('sw-last-cleanup', Date.now());
-    } catch (e) {
-      logError('[cache-cleanup] Set IDB error:', e);
+  if (CACHE_CLEANUP_ENABLED) {
+    var now = Date.now();
+    var CHECK_EVERY = 5 * 60 * 1000;
+
+    if (!self._cleanupScheduled && (!self._nextCleanupCheckAt || now >= self._nextCleanupCheckAt)) {
+      self._cleanupScheduled = true;
+
+      event.waitUntil((function () {
+        return (async function () {
+          try {
+            var run = await shouldRunCleanup();
+
+            // throttle check (high-traffic)
+            self._nextCleanupCheckAt = Date.now() + CHECK_EVERY;
+
+            if (!run) return;
+
+            await idbKeyval.set('sw-last-cleanup', Date.now());
+            await cleanUpExpiredCache();
+          } catch (e) {
+            logError('[cache-cleanup] Failed:', e);
+          } finally {
+            self._cleanupScheduled = false;
+          }
+        })();
+      })());
     }
-    setTimeout(() => {
-      cleanUpExpiredCache();
-    }, 3e4);
   }
 
-  const strategy = (matchedPattern && matchedPattern.strategy) || (urlsToCache.includes(new URL(url).pathname) ? 'cache-first' : null);
+  const strategy =
+    (matchedPattern && matchedPattern.strategy) ||
+    (urlsToCache.includes(new URL(url).pathname) ? 'cache-first' : null);
 
   if (!strategy) {
     return fetch(event.request).catch(error => {
@@ -416,13 +720,14 @@ async function handleFetch(event) {
   }
 
   if (strategy === 'cache-only') {
-    const cached = await caches.match(event.request);
+    const cached = await matchFromCaches(event.request);
+
     if (cached) {
       log('[cache-only] Serving from cache:', event.request.url);
       return cached;
     }
 
-    logError('[cache-only] Not found in cache:', event.request.url);
+    log('[cache-only] Not found in cache:', event.request.url);
     return new Response('Resource not available offline.', {
       status: 504,
       statusText: 'Gateway Timeout',
@@ -433,16 +738,17 @@ async function handleFetch(event) {
   if (strategy === 'network-only') {
     return fetch(event.request).catch(error => {
       logError('[network-only] Fetch failed:', error, event.request.url);
-      // return new Response('', { status: 204, statusText: 'No Content' });
       throw error;
     });
   }
 
   if (strategy === 'network-first') {
-    return fetch(event.request)
-      .then(async (response) => {
-        if (response.type === 'opaque') {
+    // Use CORS-first fallback for better CDN behavior
+    return fetchWithCorsFallbackKeyed(event.request)
+      .then(async ({ request: cacheKeyRequest, response }) => {
+        if (response && response.type === 'opaque') {
           log('[network-first] Opaque response encountered:', event.request.url);
+          await cacheOpaqueIfPossible(cacheKeyRequest, response);
           return response;
         }
 
@@ -469,7 +775,7 @@ async function handleFetch(event) {
 
           try {
             const cache = await caches.open(CACHE_NAME);
-            await cache.put(event.request, responseToStore);
+            await cache.put(cacheKeyRequest, responseToStore);
           } catch (err) {
             logError('[network-first] Cache put error:', err);
           }
@@ -481,19 +787,21 @@ async function handleFetch(event) {
       })
       .catch(async (error) => {
         logError('[network-first] Fetch failed:', error, event.request.url);
-        const cachedResponse = await caches.match(event.request);
+        const cachedResponse = await matchFromCaches(event.request);
         if (cachedResponse) return cachedResponse;
         throw error;
       });
   }
 
   if (strategy === 'stale-while-revalidate') {
-    const cachedResponse = await caches.match(event.request);
+    let cachedResponse = await matchFromCaches(event.request);
 
-    const fetchPromise = fetch(event.request)
-      .then(async (networkResponse) => {
-        if (networkResponse.type === 'opaque') {
+    // Use CORS-first fallback for better CDN behavior
+    const fetchPromise = fetchWithCorsFallbackKeyed(event.request)
+      .then(async ({ request: cacheKeyRequest, response: networkResponse }) => {
+        if (networkResponse && networkResponse.type === 'opaque') {
           log('[stale-while-revalidate] Opaque response encountered:', event.request.url);
+          await cacheOpaqueIfPossible(cacheKeyRequest, networkResponse);
           return networkResponse;
         }
 
@@ -514,19 +822,22 @@ async function handleFetch(event) {
             return networkResponse;
           }
 
-          const clonedResponse = networkResponse.clone();
-          const headers = new Headers(clonedResponse.headers);
+          if (networkResponse.status === 206) return networkResponse;
+
+          const buf = await networkResponse.clone().arrayBuffer();
+
+          const headers = new Headers(networkResponse.headers);
           headers.set('cached-at', new Date().toISOString());
 
-          const responseToStore = new Response(clonedResponse.body, {
-            status: clonedResponse.status,
-            statusText: clonedResponse.statusText,
+          const responseToStore = new Response(buf, {
+            status: networkResponse.status,
+            statusText: networkResponse.statusText,
             headers
           });
 
           try {
             const cache = await caches.open(CACHE_NAME);
-            await cache.put(event.request, responseToStore);
+            await cache.put(cacheKeyRequest, responseToStore);
           } catch (err) {
             logError('[stale-while-revalidate] Cache put error:', err);
           }
@@ -536,8 +847,9 @@ async function handleFetch(event) {
 
         return networkResponse;
       })
-      .catch(error => {
+      .catch(async (error) => {
         logError('[stale-while-revalidate] Fetching failed:', error);
+        const cachedResponse = await matchFromCaches(event.request);
         if (cachedResponse) return cachedResponse;
         throw error;
       });
@@ -546,32 +858,40 @@ async function handleFetch(event) {
   }
 
   // Default: cache-first
-  const cachedResponse = await caches.match(event.request);
+  const cachedResponse = await matchFromCaches(event.request);
   if (cachedResponse) {
+    // If cache-first non opaque, then still revalidateWithEtag.
+    if (cachedResponse.type !== 'opaque') {
+      event.waitUntil(
+        revalidateWithETag(event.request, cachedResponse)
+          .catch(error => logError('[cache-first] Background revalidation failed:', error))
+      );
+    }
+
+    // Still respect TTL if there is cached-at header
     const cachedAt = cachedResponse.headers.get('cached-at');
     if (cachedAt) {
       const age = Date.now() - new Date(cachedAt).getTime();
       const expiration = ENVIRONMENT === 'production' ? CACHE_EXPIRATION : 60 * 1000;
+
+      // If still masih fresh => continue serve cache
       if (age < expiration) {
-        event.waitUntil(
-          revalidateWithETag(event.request, cachedResponse)
-            .catch(error => {
-              logError('[cache-first] Background revalidation failed:', error);
-            })
-        );
         return cachedResponse;
       }
+      // If expired => continue to the network fetch
+    } else {
+      // If no cached-at (i.e opaque / old cache), just serve cache
+      return cachedResponse;
     }
   }
 
   try {
-    const response = await fetch(event.request.clone(), {
-      credentials: 'same-origin',
-      mode: 'cors'
-    });
+    // Use CORS-first fallback instead of forcing mode/credentials
+    const { request: cacheKeyRequest, response } = await fetchWithCorsFallbackKeyed(event.request);
 
-    if (response.type === 'opaque') {
+    if (response && response.type === 'opaque') {
       log('[cache-first] Opaque response encountered:', event.request.url);
+      await cacheOpaqueIfPossible(cacheKeyRequest, response);
       return response;
     }
 
@@ -591,10 +911,12 @@ async function handleFetch(event) {
         return response;
       }
 
+      const buf = await response.clone().arrayBuffer();
+
       const newHeaders = new Headers(response.headers);
       newHeaders.set('cached-at', new Date().toISOString());
 
-      const responseToStore = new Response(response.clone().body, {
+      const responseToStore = new Response(buf, {
         status: response.status,
         statusText: response.statusText,
         headers: newHeaders
@@ -602,7 +924,7 @@ async function handleFetch(event) {
 
       try {
         const cache = await caches.open(CACHE_NAME);
-        await cache.put(event.request, responseToStore);
+        await cache.put(cacheKeyRequest, responseToStore);
       } catch (cacheError) {
         logError('[cache-first] Cache put error:', cacheError);
       }
@@ -618,27 +940,24 @@ async function handleFetch(event) {
   }
 }
 
-// Activate event with improved cleanup
 self.addEventListener('activate', event => {
   event.waitUntil(
     caches.keys()
       .then(cacheNames => {
-        return Promise.all(
-          cacheNames.map(cacheName => {
-            if (cacheName !== CACHE_NAME) {
-              log('[activate] Deleting old cache:', cacheName);
-              return caches.delete(cacheName);
-            }
-          })
-        );
+        // Safer deletion list (no undefined values passed to Promise.all)
+        const deletions = cacheNames
+          .filter(cacheName => cacheName.startsWith(CACHE_PREFIX + '-') &&
+            cacheName !== CACHE_NAME &&
+            cacheName !== OPAQUE_CACHE_NAME)
+          .map(cacheName => {
+            log('[activate] Deleting old cache:', cacheName);
+            return caches.delete(cacheName);
+          });
+        return Promise.all(deletions);
       })
-      .then(() => {
-        // Optional: ensure new service worker takes control immediately
-        return clients.claim();
-      })
-      .catch(error => {
-        logError('[activate] Cache cleanup failed:', error);
-      })
+      .then(() => deleteOldOpaqueQueues())
+      .then(() => clients.claim())
+      .catch(error => logError('[activate] Cache cleanup failed:', error))
   );
 });
 
@@ -670,33 +989,38 @@ self.addEventListener("push", event => {
 });
 
 // Handle notification clicks (compatible with FCM and regular push)
-self.addEventListener('notificationclick', event => {
+self.addEventListener('notificationclick', function (event) {
   event.notification.close();
 
-  const url = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  var raw = (event.notification && event.notification.data && event.notification.data.url) || '/';
+  var target;
+  try {
+    target = new URL(raw, self.location.origin).href; // aman untuk full atau relative
+  } catch (e) {
+    target = self.location.origin + '/';
+  }
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clientList => {
-      for (const client of clientList) {
-        if (client.url === url && 'focus' in client) {
-          return client.focus();
-        }
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function (clientList) {
+      for (var i = 0; i < clientList.length; i++) {
+        var client = clientList[i];
+        if (client.url === target && 'focus' in client) return client.focus();
       }
-      if (clients.openWindow) {
-        return clients.openWindow(url);
-      }
-    }).catch(error => logError("[notificationclick] Error handling notification click:", error))
+      if (clients.openWindow) return clients.openWindow(target);
+    })
   );
 });
 
 // Listen for messages from the main thread
-self.addEventListener('message', async (event) => {
+self.addEventListener('message', function (event) {
+  if (!event || !event.data || !event.data.type) return;
+
   switch (event.data.type) {
     case 'GET_SW_CONFIG':
-      await handleGetSWConfig(event);
+      handleGetSWConfig(event);
       break;
     case 'GET_SW_CLEANUP_STATUS':
-      await handleGetSWCleanupStatus(event);
+      handleGetSWCleanupStatus(event);
       break;
   }
 });

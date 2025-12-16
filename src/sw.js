@@ -18,7 +18,6 @@ const DEBUG = false; // Set to false in production
 
 // Files to cache explicitly
 const urlsToCache = [
-  '/',
   '/favicon.ico'
 ];
 
