@@ -293,6 +293,58 @@ function matchesPattern(url) {
   }
 }
 
+function shouldCache(request, response) {
+  const url = request.url;
+  const dest = request.destination;
+
+  // 1. block media by destination
+  if (dest === 'video' || dest === 'audio') return false;
+
+  // 2. block archive & video by extension
+  if (/\.(zip|rar|7z|tar|gz|bz2|mp4|mkv|webm)(\?.*)?$/i.test(url)) {
+    return false;
+  }
+
+  // 3. block by content-type (extra safety)
+  const contentType = response.headers.get('content-type') || '';
+  if (
+    contentType.startsWith('video/') ||
+    contentType.startsWith('audio/') ||
+    contentType === 'application/zip' ||
+    contentType === 'application/x-rar-compressed' ||
+    contentType === 'application/x-tar' ||
+    contentType === 'application/gzip'
+  ) {
+    return false;
+  }
+
+  // 4. block if size > 2MB
+  const contentLength = response.headers.get('content-length');
+  if (contentLength && parseInt(contentLength) > 2_000_000) {
+    return false;
+  }
+
+  // 5. fallback if there is no content-length
+  if (!contentLength) {
+    if (
+      contentType.startsWith('video/') ||
+      contentType.startsWith('audio/') ||
+
+      // archive
+      contentType.includes('zip') ||
+      contentType.includes('compressed') ||
+      contentType.includes('tar') ||
+
+      // generic binary
+      contentType === 'application/octet-stream'
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 // Install event with error handling
 self.addEventListener('install', event => {
   event.waitUntil(
@@ -475,6 +527,11 @@ async function handleFetch(event) {
             return response;
           }
 
+          // determine is url cacheable
+          if (!shouldCache(event.request, response)) {
+            return response;
+          }
+
           const rawBody = await response.clone().arrayBuffer();
           const headers = new Headers(response.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -529,6 +586,11 @@ async function handleFetch(event) {
 
           if (networkResponse.headers.get('Cache-Control') && networkResponse.headers.get('Cache-Control').includes('no-store')) {
             log('[stale-while-revalidate] Skipping cache due to Cache-Control: no-store:', event.request.url);
+            return networkResponse;
+          }
+
+          // determine is url cacheable
+          if (!shouldCache(event.request, networkResponse)) {
             return networkResponse;
           }
 
@@ -606,6 +668,11 @@ async function handleFetch(event) {
 
       if (response.headers.get('Cache-Control') && response.headers.get('Cache-Control').includes('no-store')) {
         log('[cache-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
+        return response;
+      }
+
+      // determine is url cacheable
+      if (!shouldCache(event.request, response)) {
         return response;
       }
 

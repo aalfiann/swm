@@ -349,6 +349,57 @@ async function matchFromCaches(request) {
   return caches.match(request.url);
 }
 
+function shouldCache(request, response) {
+  const url = request.url;
+  const dest = request.destination;
+
+  // 1. block media by destination
+  if (dest === 'video' || dest === 'audio') return false;
+
+  // 2. block archive & video by extension
+  if (/\.(zip|rar|7z|tar|gz|bz2|mp4|mkv|webm)(\?.*)?$/i.test(url)) {
+    return false;
+  }
+
+  // 3. block by content-type (extra safety)
+  const contentType = response.headers.get('content-type') || '';
+  if (
+    contentType.startsWith('video/') ||
+    contentType.startsWith('audio/') ||
+    contentType === 'application/zip' ||
+    contentType === 'application/x-rar-compressed' ||
+    contentType === 'application/x-tar' ||
+    contentType === 'application/gzip'
+  ) {
+    return false;
+  }
+
+  // 4. block if size > 2MB
+  const contentLength = response.headers.get('content-length');
+  if (contentLength && parseInt(contentLength) > 2_000_000) {
+    return false;
+  }
+
+  // 5. fallback if there is no content-length
+  if (!contentLength) {
+    if (
+      contentType.startsWith('video/') ||
+      contentType.startsWith('audio/') ||
+
+      // archive
+      contentType.includes('zip') ||
+      contentType.includes('compressed') ||
+      contentType.includes('tar') ||
+
+      // generic binary
+      contentType === 'application/octet-stream'
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // Decide whether an opaque response is safe to cache
 function shouldCacheOpaque(url) {
@@ -424,13 +475,9 @@ async function cacheOpaqueIfPossible(cacheKeyRequest, response) {
     if (cacheKeyRequest.destination === 'document') return;
 
     if (response && response.type === 'opaque' && shouldCacheOpaque(cacheKeyRequest.url)) {
-      if (/\.(zip|rar|7z|mp4|mkv|webm)$/i.test(cacheKeyRequest.url)) {
-        return; // skip potential big file
-      }
-
-      const contentLength = response.headers.get('content-length');
-      if (contentLength && parseInt(contentLength) > 2_000_000) {
-        return; // skip big file (>2MB)
+      // determine is url cacheable
+      if (!shouldCache(cacheKeyRequest, response)) {
+        return response;
       }
 
       const cache = await caches.open(OPAQUE_CACHE_NAME);
@@ -794,6 +841,11 @@ async function handleFetch(event) {
             return response;
           }
 
+          // determine is url cacheable
+          if (!shouldCache(cacheKeyRequest, response)) {
+            return response;
+          }
+
           const rawBody = await response.clone().arrayBuffer();
           const headers = new Headers(response.headers);
           headers.set('cached-at', new Date().toISOString());
@@ -854,6 +906,11 @@ async function handleFetch(event) {
           }
 
           if (networkResponse.status === 206) return networkResponse;
+
+          // determine is url cacheable
+          if (!shouldCache(cacheKeyRequest, networkResponse)) {
+            return networkResponse;
+          }
 
           const buf = await networkResponse.clone().arrayBuffer();
 
@@ -939,6 +996,11 @@ async function handleFetch(event) {
 
       if (response.headers.get('Cache-Control') && response.headers.get('Cache-Control').includes('no-store')) {
         log('[cache-first] Skipping cache due to Cache-Control: no-store:', event.request.url);
+        return response;
+      }
+
+      // determine is url cacheable
+      if (!shouldCache(cacheKeyRequest, response)) {
         return response;
       }
 
