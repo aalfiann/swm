@@ -361,8 +361,9 @@ function shouldCache(request, response) {
     return false;
   }
 
-  // 3. block by content-type (extra safety)
   const contentType = response.headers.get('content-type') || '';
+
+  // 3. block by content-type (primary)
   if (
     contentType.startsWith('video/') ||
     contentType.startsWith('audio/') ||
@@ -374,24 +375,18 @@ function shouldCache(request, response) {
     return false;
   }
 
-  // 4. block if size > 2MB
+  // 4. size limit
   const contentLength = response.headers.get('content-length');
   if (contentLength && parseInt(contentLength) > 2_000_000) {
     return false;
   }
 
-  // 5. fallback if there is no content-length
+  // 5. fallback
   if (!contentLength) {
     if (
-      contentType.startsWith('video/') ||
-      contentType.startsWith('audio/') ||
-
-      // archive
       contentType.includes('zip') ||
       contentType.includes('compressed') ||
       contentType.includes('tar') ||
-
-      // generic binary
       contentType === 'application/octet-stream'
     ) {
       return false;
