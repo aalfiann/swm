@@ -107,7 +107,23 @@ const excludedFromCache = [
   '*redirect_uri=*',
   '*csrf*',
   '*token=*',
-  '*static.cloudflareinsights.com*'
+  '*cloudflareinsights.com*',
+  '*google-analytics.com*',
+  '*googletagmanager.com*',
+  '*g.doubleclick.net*',
+  '*googleadservices.com*',
+  '*googlesyndication.com*',
+  '*connect.facebook.net*',
+  '*facebook.com/tr*',
+  '*facebook.net*',
+  '*analytics.tiktok.com*',
+  '*redditstatic.com*',
+  '*ads.reddit.com*',
+  '*analytics.twitter.com*',
+  '*t.co/i/adsct*',
+  '*sentry.io*',
+  '*ingest.sentry.io*',
+  '*umami.is*'
 ];
 
 //-----------------------
@@ -592,6 +608,12 @@ self.addEventListener('install', event => {
 // Fetch event with improved error handling
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+
+  // bypass for excluded URL
+  if (shouldExcludeFromCache(event.request.url)) {
+    return; // let browser handle directly
+  }
+
   event.respondWith(handleFetch(event));
 });
 

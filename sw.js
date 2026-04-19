@@ -44,11 +44,6 @@ const cachePatterns = [
     strategy: 'cache-first'
   },
   {
-    // Cloudflare Insights
-    pattern: /^https:\/\/static\.cloudflareinsights\.com\//,
-    strategy: 'network-only'
-  },
-  {
     // WordPress admin and login pages - use network-only to avoid caching sensitive data
     pattern: /^\/(wp-login\.php|wp-admin)/,
     strategy: 'network-only'
@@ -99,7 +94,24 @@ const excludedFromCache = [
   '/auth*',
   '*redirect_uri=*',
   '*csrf*',
-  '*token=*'
+  '*token=*',
+  '*cloudflareinsights.com*',
+  '*google-analytics.com*',
+  '*googletagmanager.com*',
+  '*g.doubleclick.net*',
+  '*googleadservices.com*',
+  '*googlesyndication.com*',
+  '*connect.facebook.net*',
+  '*facebook.com/tr*',
+  '*facebook.net*',
+  '*analytics.tiktok.com*',
+  '*redditstatic.com*',
+  '*ads.reddit.com*',
+  '*analytics.twitter.com*',
+  '*t.co/i/adsct*',
+  '*sentry.io*',
+  '*ingest.sentry.io*',
+  '*umami.is*'
 ];
 
 //-----------------------
@@ -309,6 +321,12 @@ self.addEventListener('install', event => {
 // Fetch event with improved error handling
 self.addEventListener('fetch', event => {
   if (event.request.method !== 'GET') return;
+
+  // bypass for excluded URL
+  if (shouldExcludeFromCache(event.request.url)) {
+    return; // let browser handle directly
+  }
+
   event.respondWith(handleFetch(event));
 });
 
