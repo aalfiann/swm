@@ -7,11 +7,11 @@ const CACHE_PREFIX = 'site-name'; // Change 'site-name' to your actual site name
 const CACHE_NAME = `${CACHE_PREFIX}-v${VERSION}`;
 const OPAQUE_CACHE_NAME = `${CACHE_PREFIX}-opaque-v${VERSION}`;
 const OPAQUE_QUEUE_KEY = `opaque-queue-${VERSION}`;
-const MAX_OPAQUE_ENTRIES = 50;
+const MAX_OPAQUE_ENTRIES = 50; // don't too high, storage browser only have 200MB space per origin
 // Cache expiration will keep the cache until the specified time
 const CACHE_EXPIRATION = 24 * 60 * 60 * 1000; // 24 hours
 // Cache cleanup will clean up all caches older than CACHE_EXPIRATION
-const CACHE_CLEANUP_ENABLED = true;  // If your site is small (below 10 pages), better set this to false.
+const CACHE_CLEANUP_ENABLED = true;  // If your site is small (below 20 pages), better set this to false
 const CACHE_CLEANUP_INTERVAL = 8 * 60 * 60 * 1000 // 8 hours
 // Allow-list for cross-origin CDN hosts whose opaque responses are safe to cache
 // Hostname only (no protocol, no path)
@@ -22,8 +22,8 @@ const ALLOW_CDN_HOSTS = [
   // 'static.yourdomain.com'
 ];
 // Environment variable to control cache expiration
-// Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION.
-const ENVIRONMENT = 'production'; // Change to 'development' or 'production'.
+// Set to 'development' for shorter cache expiration (1 minute) and 'production' will use CACHE_EXPIRATION
+const ENVIRONMENT = 'production'; // Change to 'development' or 'production'
 // Debugging flag to enable/disable console logs
 const DEBUG = false; // Set to false in production
 
@@ -408,6 +408,15 @@ async function cacheOpaqueIfPossible(cacheKeyRequest, response) {
     if (cacheKeyRequest.destination === 'document') return;
 
     if (response && response.type === 'opaque' && shouldCacheOpaque(cacheKeyRequest.url)) {
+      if (/\.(zip|rar|7z|mp4|mkv|webm)$/i.test(cacheKeyRequest.url)) {
+        return; // skip potential big file
+      }
+
+      const contentLength = response.headers.get('content-length');
+      if (contentLength && parseInt(contentLength) > 2_000_000) {
+        return; // skip big file (>2MB)
+      }
+
       const cache = await caches.open(OPAQUE_CACHE_NAME);
       const key = cacheKeyRequest.url;
       await cache.put(key, response.clone());
